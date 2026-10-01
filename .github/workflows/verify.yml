@@ -1,0 +1,78 @@
+# 派生自 SnowLuma 源码 · 非商业自用 · 不发包管理器
+#
+# verify:all 离线主链（9 条门禁）在 CI 里强制执行——门禁链早已全自动，缺的从来是
+# "没人按按钮时它自己会不会跑"。L4（活夹具）不在 CI：它要拉起真实 SnowLuma 实例，
+# 上游本体不进仓库，只能在操作者本机跑（npm run verify:all -- --fixture）。
+#
+# 为什么是 windows-latest：generate 的三段 npm 脚本按本仓开发机写死 Windows 路径
+# （.venv-gen\Scripts\python.exe），POSIX runner 跑不了；demo-regen.yml 为此才收窄到
+# 只有 typescript 一段。这里引导完整工具链（node/python/go + 两个钉版本的生成器），
+# 把三语生成和全部 9 条离线门禁放进 CI。工具链版本以 tools.lock.json 为准：
+#   openapi-python-client 0.29.1 · oapi-codegen v2.8.0 · go 见 adapters/go/go.mod
+name: verify-all
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      # CI runner 的默认控制台编码是 cp1252，add-header.py / probe.py / 适配器测试往
+      # 重定向的 stdout 打中文会 UnicodeEncodeError（首跑实测）。统一强制 UTF-8，
+      # 一个 env 覆盖全部 Python 腿，不改各个脚本。
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: adapters/go/go.mod
+          cache: true
+          cache-dependency-path: adapters/go/go.sum
+
+      - name: 安装 oapi-codegen（版本钉 tools.lock.json）
+        run: go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.8.0
+
+      - name: go 工具进 PATH
+        shell: pwsh
+        run: echo "$(go env GOPATH)\bin" >> $env:GITHUB_PATH
+
+      - name: 引导 .venv-gen（openapi-python-client 钉版本）
+        run: |
+          python -m venv .venv-gen
+          .venv-gen\Scripts\python -m pip install "openapi-python-client==0.29.1"
+
+      - name: 依赖
+        run: npm ci
+
+      # vendor/upstream/ 不入库（gitignore），而 drift、ui-coverage、build-anchor 基线绊线
+      # 三条门禁都读它——冷克隆不恢复缓存就必红，而 lock 明令禁止用 skip/放宽把它变绿。
+      # 走的就是 prerequisites.fetchCommand 记载的唯一恢复路径（按 anchor 的 40 位 SHA 重拉）。
+      - name: 恢复 vendor/upstream 缓存（按锚点 SHA 重拉）
+        run: npm run fetch:upstream
+
+      - name: 三语生成（generated/ 不进版本库，CI 先补齐）
+        run: npm run generate
+
+      # 跟踪面 .gen.ts 的新鲜度与"未被手改"检查：词表重发后逐字节对 HEAD。
+      # 本机等价入口 npm run gen:check；不在 verify:all 的 GATES 里（那条链只收离线自明门禁），
+      # 但 CI 每次 push/PR 都跑——与 check-vocabulary 的完备性断言互补：
+      # 那边管"该有没有"，这边管"抄没抄/手改没手改"。
+      - name: 生成物新鲜度（gen:check）
+        run: npm run gen:check
+
+      - name: verify:all —— 9 条离线门禁
+        run: npm run verify:all

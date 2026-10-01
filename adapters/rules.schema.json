@@ -1,0 +1,79 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SnowLuma 适配层归一化规则表（设计口径：规则单源、实现三份、输出必检）",
+  "description": "三语言适配层共用的归一化规则。本 Schema 是规则形态的规范定义；三语言读取方各自做结构校验（仓库不新增 ajv 依赖），校验失败必须抛错而非忽略规则。",
+  "type": "object",
+  "required": ["schemaVersion", "rules"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "规则表自身的版本；破坏性变更（删规则/改语义）必须升主版本，读取方按主版本兼容。"
+    },
+    "rules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "match", "op"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]*$",
+            "description": "规则唯一标识；读取方必须校验全表唯一，重复即抛错。"
+          },
+          "match": {
+            "type": "object",
+            "required": ["path", "method"],
+            "additionalProperties": false,
+            "properties": {
+              "path": {
+                "type": "string",
+                "pattern": "^/",
+                "description": "OpenAPI 模板形（/api/config/{uin}）；{x} 匹配单个非 / 段。"
+              },
+              "method": {
+                "type": "string",
+                "pattern": "^[A-Z]+$",
+                "description": "HTTP 方法大写。"
+              }
+            }
+          },
+          "op": {
+            "enum": ["unwrap", "rename"],
+            "description": "unwrap=信封解包（双形状端点）；rename=字段改名/别名。"
+          },
+          "when": {
+            "type": ["object", "null"],
+            "description": "条件：响应体含 hasKey 指定的键时规则才生效（unwrap 的双形状判别用）。null 与缺省同义 = 无条件。",
+            "additionalProperties": false,
+            "properties": {
+              "hasKey": { "type": "string", "minLength": 1 }
+            }
+          },
+          "unwrapKey": { "type": "string", "minLength": 1 },
+          "rename": {
+            "type": "object",
+            "required": ["from", "to"],
+            "additionalProperties": false,
+            "properties": {
+              "from": { "type": "string", "minLength": 1 },
+              "to": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        "allOf": [
+          {
+            "if": { "properties": { "op": { "const": "unwrap" } } },
+            "then": { "required": ["unwrapKey"] }
+          },
+          {
+            "if": { "properties": { "op": { "const": "rename" } } },
+            "then": { "required": ["rename"] }
+          }
+        ]
+      }
+    }
+  }
+}

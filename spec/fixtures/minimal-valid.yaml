@@ -1,0 +1,40 @@
+# 派生自 SnowLuma 源码 · 非商业自用 · 不发包管理器
+# 合规范本：对 validate-spec.ts 的每一条规则都保持沉默（0 error / 0 warning）。
+# 设计口径把认证钉为 http/bearer 并给出全局 security 形状；路径参数按裁定 R19 用 OpenAPI 的 {uin} 形式。
+openapi: 3.0.3
+info:
+  title: fixture
+  version: 0.0.0
+security:
+  - bearer: []
+paths:
+  /api/logs:
+    get:
+      operationId: listLogs
+      x-replay-class: t1
+      x-verification-status: unverified-requires-qq
+      responses:
+        '200':
+          description: ok
+  # 设计口径的两轴示例：GET /api/config/:uin 属 T1 但需挂 QQ 才能验
+  /api/config/{uin}:
+    parameters:
+      - $ref: '#/components/parameters/Uin'
+    get:
+      operationId: getConfig
+      x-replay-class: t1
+      x-verification-status: unverified-requires-qq
+      responses:
+        '200':
+          description: ok
+components:
+  securitySchemes:
+    bearer: { type: http, scheme: bearer }
+  parameters:
+    Uin:
+      name: uin
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: '^[0-9]{5,10}$'

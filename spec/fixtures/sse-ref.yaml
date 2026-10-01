@@ -1,0 +1,28 @@
+# 派生自 SnowLuma 源码 · 非商业自用 · 不发包管理器
+# 漏检样本：200 走 components/responses 的 $ref，内联 responses['200'].content 不存在。
+# 期望（修好后）：WithResponse 警告规则解开这层 $ref 并对本操作发声。
+# 当前（修之前）：0 warning —— 这个"沉默"就是要被证伪的对象。
+openapi: 3.0.3
+info:
+  title: fixture-sse-ref
+  version: 0.0.0
+security:
+  - bearer: []
+paths:
+  /api/debug/stream:
+    get:
+      operationId: openDebugStream
+      x-replay-class: t1
+      x-verification-status: static-only
+      responses:
+        '200':
+          $ref: '#/components/responses/DebugStreamOK'
+components:
+  securitySchemes:
+    bearer: { type: http, scheme: bearer }
+  responses:
+    DebugStreamOK:
+      description: SSE 流
+      content:
+        text/event-stream:
+          schema: { type: string }

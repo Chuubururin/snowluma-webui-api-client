@@ -1,0 +1,21 @@
+// tsconfig.demo.json —— 不进主 tsconfig.json（N29：generated 缺席时全仓 tsc 必须干净）。
+// 剥类型不做类型检查（esbuild 只删标注），所以 demo 的类型门禁全靠这份配置：
+//  · demo/** —— 服务端与浏览器端源码（client 侧靠 DOM lib）；
+//  · tools/demo-*.test.ts 与 tools/helpers/demo-http.ts —— 它们经 demo/server/upstream.ts
+//    传递依赖 git-ignored 的 generated/，故主 tsconfig 排除、由本配置 + typecheck:demo 接管；
+//    tools/fixture.ts 与 tools/e2e-smoke.ts 同族（后者 import demo/server 装配点）；
+//  · generated/typescript/** —— demo 侧 import 的产物必须一起进检查面，否则调用签名无人验。
+// moduleResolution: bundler：hey-api 产物用无扩展名相对导入（见 tsconfig.gen-ts.json 同条理由）。
+{
+  "compilerOptions": {
+    "noEmit": true,
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["node"]
+  },
+  "include": ["demo/**/*.ts", "tools/demo-*.test.ts", "tools/fixture.ts", "tools/e2e-smoke.ts", "tools/helpers/demo-http.ts", "generated/typescript/**/*"]
+}

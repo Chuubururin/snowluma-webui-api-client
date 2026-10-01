@@ -1,0 +1,102 @@
+# 派生自 SnowLuma 源码 · 非商业自用 · 不发包管理器
+# 这是 spike 的**被测输入**，不是 spec 模板：它故意含 `discriminator`（含布尔
+# propertyName: success 与 'true'/'false' 字符串 mapping），用来取证三家生成器的反应。
+# 裁定 R22 后，本项目正式 spec 内**一律不得写 discriminator**；
+# 本文件保留原形状 solely 为了 spike 可复现。正式写 spec 时不要从这里复制。
+# 实测结论见 spike/findings.md Q1（三家全部否定），退化形状的同批样本在 spike/out/*-nodisc/。
+#
+# 【终审 I3b 追加】校验器从此**执法** R22（新增 DISCRIMINATOR_FORBIDDEN 规则），
+# 因此本文件现在跑 `node_modules/.bin/tsx tools/validate-spec.ts spike/minimal-spec.yaml` 的结果是
+# **1 error（就是下面那个 discriminator）/ exit 1**，不再是 findings.md 顶部记录的 0 error。
+# 那是 **pre-R22 的历史测量**，不是回归。此处**刻意不加白名单、也不把规则降为 warning**：
+# 本文件是 spike 的被测输入而非模板，让规则对"唯一合理的例外"也保持诚实报错，
+# 才能保证客户端批次从本文件复制形状时必然被拦下。tools/ 下没有任何测试校验本文件
+# （validate-spec.test.ts 的 fixture 清单只读 spec/fixtures/），所以这条 error 不会弄红测试。
+openapi: 3.0.3
+info:
+  title: SnowLuma WebUI spike fixture
+  version: 0.0.0
+  description: 派生自 SnowLuma 源码 · 非商业自用 · 不发包管理器
+servers:
+  - url: http://127.0.0.1:5099
+security:
+  - bearer: []
+components:
+  securitySchemes:
+    bearer: { type: http, scheme: bearer }
+  schemas:
+    LoginSuccess:
+      type: object
+      required: [success, token, mustChangePassword]
+      properties:
+        success: { type: boolean, enum: [true] }
+        token: { type: string }
+        mustChangePassword: { type: boolean }
+    LoginNeedsTotp:
+      type: object
+      required: [success, needsTotp]
+      properties:
+        success: { type: boolean, enum: [false] }
+        needsTotp: { type: boolean, enum: [true] }
+    LoginResult:
+      oneOf:
+        - $ref: '#/components/schemas/LoginSuccess'
+        - $ref: '#/components/schemas/LoginNeedsTotp'
+      discriminator:
+        propertyName: success
+        mapping:
+          'true': '#/components/schemas/LoginSuccess'
+          'false': '#/components/schemas/LoginNeedsTotp'
+paths:
+  /api/login:
+    post:
+      operationId: login
+      security: []
+      x-replay-class: t2
+      x-verification-status: verified
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password: { type: string }
+                totp: { type: string }
+      responses:
+        '200':
+          description: 成功或需第二因子
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoginResult' }
+  /api/state/stream:
+    get:
+      operationId: streamState
+      x-replay-class: t1
+      x-verification-status: verified
+      responses:
+        '200':
+          description: SSE
+          content:
+            text/event-stream:
+              schema: { type: string }
+  /api/debug/upload:
+    post:
+      operationId: uploadDebugFile
+      x-replay-class: t3
+      # 裁定 R20（评审）：x-snowluma-destructive 的**必标集**恰为设计口径的闸门对象，
+      # 即 /api/debug/invoke 与 /api/debug/invoke-stream —— 因为"危险"在这里有精确所指：
+      # 经 5099 执行整个 OneBot action 目录。upload 落盘临时文件属 T3（永不自动重放），
+      # 但不是闸门所指，故**不标**此扩展；校验器也**不得**因它没标而报错。
+      # 反向不强制：给非 invoke 的端点标 destructive 是保守方向，允许。
+      x-verification-status: destructive-static-only
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        '200': { description: ok }

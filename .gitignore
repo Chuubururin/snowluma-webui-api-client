@@ -1,0 +1,28 @@
+# git worktree 隔离工作区，切勿入库
+.worktrees/
+node_modules/
+vendor/
+spike/out/
+.superpowers/
+*.log
+generated/
+.venv-gen/
+
+# vitest 的运行期缓存（`node_modules/.bin/vitest run` 在本仓库会生成 .vitest/json/*.json）
+# 与 node_modules/ 同类：机器生成、跨机器不可比、入库只会让 `git status` 在每次跑测试后变脏。
+.vitest/
+
+# 安全扫描插件的会话态（hook-state/hook-status，按会话 id 命名）：与 .vitest/ 同类 ——
+# 机器生成、跨会话不可比；不忽略它会让 integrity-check 的"工作区干净"道永久红。
+.mimosa/
+
+# Python 字节码缓存（adapters/python 的 unittest 跑一次即生成）：与 .vitest/ 同类。
+__pycache__/
+
+# ZCode 长任务台账（.zcode/tasks.md）：本机状态文件，按 long-task-closure 约定不入库。
+.zcode/
+.workbuddy-ai/
+.zcodeignore
+
+# 浏览器 E2E smoke 的截图落点（本机证据，不入库）
+.e2e-smoke/

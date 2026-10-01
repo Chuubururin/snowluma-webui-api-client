@@ -1,0 +1,112 @@
+{
+  "description": "三语 golden fixture（设计口径）：同一份输入喂三份适配层，比较解析后的规范化对象而非序列化字节（键序/浮点/Unicode 跨语言天然不同）。规则表缺省用仓库的 adapters/rules.json；用例可带自有 rules 表（覆盖 rename/链式/无条件解包等仓库表触不到的分支），三语 runner 同一裁定的 validate 过表。",
+  "cases": [
+    {
+      "name": "config-unwrap-hit",
+      "method": "GET",
+      "path": "/api/config/12345",
+      "response": { "config": { "a": 1 } },
+      "expected": { "a": 1 }
+    },
+    {
+      "name": "config-unwrap-when-miss",
+      "method": "GET",
+      "path": "/api/config/12345",
+      "response": { "other": 1 },
+      "expected": { "other": 1 }
+    },
+    {
+      "name": "no-rule-match-method",
+      "method": "POST",
+      "path": "/api/config/12345",
+      "response": { "config": { "a": 1 } },
+      "expected": { "config": { "a": 1 } }
+    },
+    {
+      "name": "no-rule-match-path",
+      "method": "GET",
+      "path": "/api/other/12345",
+      "response": { "config": { "a": 1 } },
+      "expected": { "config": { "a": 1 } }
+    },
+    {
+      "name": "array-body-passthrough",
+      "method": "GET",
+      "path": "/api/status",
+      "response": [1, 2, 3],
+      "expected": [1, 2, 3]
+    },
+    {
+      "name": "string-body-passthrough",
+      "method": "GET",
+      "path": "/api/status",
+      "response": "plain",
+      "expected": "plain"
+    },
+    {
+      "name": "unicode-passthrough",
+      "method": "GET",
+      "path": "/api/qq-list",
+      "response": { "list": [{ "uin": "12345", "nickname": "昵称✓" }] },
+      "expected": { "list": [{ "uin": "12345", "nickname": "昵称✓" }] }
+    },
+    {
+      "name": "number-passthrough",
+      "method": "GET",
+      "path": "/api/system",
+      "response": { "cpu": { "average": 12.5, "cores": 8 } },
+      "expected": { "cpu": { "average": 12.5, "cores": 8 } }
+    },
+    {
+      "name": "rename-hit",
+      "rules": [
+        { "id": "alias", "match": { "path": "/api/x", "method": "GET" }, "op": "rename", "rename": { "from": "old", "to": "new" } }
+      ],
+      "method": "GET",
+      "path": "/api/x",
+      "response": { "old": 1, "keep": 2 },
+      "expected": { "new": 1, "keep": 2 }
+    },
+    {
+      "name": "rename-from-equals-to-noop",
+      "rules": [
+        { "id": "same", "match": { "path": "/api/x", "method": "GET" }, "op": "rename", "rename": { "from": "a", "to": "a" } }
+      ],
+      "method": "GET",
+      "path": "/api/x",
+      "response": { "a": 1, "b": 2 },
+      "expected": { "a": 1, "b": 2 }
+    },
+    {
+      "name": "unwrap-unconditional-when-null",
+      "rules": [
+        { "id": "env", "match": { "path": "/api/x", "method": "GET" }, "op": "unwrap", "unwrapKey": "config", "when": null }
+      ],
+      "method": "GET",
+      "path": "/api/x",
+      "response": { "config": { "v": 1 } },
+      "expected": { "v": 1 }
+    },
+    {
+      "name": "chained-unwrap-then-rename",
+      "rules": [
+        { "id": "env", "match": { "path": "/api/x", "method": "GET" }, "op": "unwrap", "unwrapKey": "config" },
+        { "id": "alias", "match": { "path": "/api/x", "method": "GET" }, "op": "rename", "rename": { "from": "a", "to": "b" } }
+      ],
+      "method": "GET",
+      "path": "/api/x",
+      "response": { "config": { "a": 1 } },
+      "expected": { "b": 1 }
+    },
+    {
+      "name": "unwrap-non-object-inner-skip",
+      "rules": [
+        { "id": "env", "match": { "path": "/api/x", "method": "GET" }, "op": "unwrap", "unwrapKey": "config" }
+      ],
+      "method": "GET",
+      "path": "/api/x",
+      "response": { "config": 5 },
+      "expected": { "config": 5 }
+    }
+  ]
+}

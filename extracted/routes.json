@@ -1,0 +1,387 @@
+[
+  {
+    "key": "DELETE /api/system/tls/cert",
+    "method": "DELETE",
+    "path": "/api/system/tls/cert",
+    "file": "packages/core/src/webui/server.ts",
+    "line": 1218
+  },
+  {
+    "key": "DELETE /api/ui/background",
+    "method": "DELETE",
+    "path": "/api/ui/background",
+    "file": "packages/core/src/webui/server.ts",
+    "line": 1763
+  },
+  {
+    "key": "GET /api/agreements",
+    "method": "GET",
+    "path": "/api/agreements",
+    "file": "packages/core/src/webui/server.ts",
+    "line": 944
+  },
+  {
+    "key": "GET /api/auth/state",
+    "method": "GET",
+    "path": "/api/auth/state",
+    "file": "packages/core/src/webui/server.ts",
+    "line": 723
+  },
+  {
+    "key": "GET /api/auth/totp",
+    "method": "GET",
+    "path": "/api/auth/totp",
+    "file": "packages/core/src/webui/server.ts",
+    "line": 780
+  },
+  {
+    "key": "GET /api/config/:uin",
+    "method": "GET",
+    "path": "/api/config/:uin",
+    "file": "packages/core/src/webui/server.ts",
+    "line": 1511
+  },
+  {
+    "key": "GET /api/connections",
+    "method": "GET",
+    "path": "/api/connections",
+    "file": "packages/core/src/webui/server.ts",
+    "line": 1371
+  },
+  {
+    "key": "GET /api/debug/actions",
+    "method": "GET",
+    "path": "/api/debug/actions",
+    "file": "packages/core/src/webui/server.ts",
+    "line": 1288
+  },
+  {
+    "key": "GET /api/debug/stream",
+    "method": "GET",
+    "path": "/api/debug/stream",
+    "file": "packages/core/src/webui/server.ts",
+    "line": 1347
+  },
+  {
+    "key": "GET /api/global-config",
+    "method": "GET",
+    "path": "/api/global-config",
+    "file": "packages/core/src/webui/server.ts",
+    "line": 1672
+  },
+  {
+    "key": "GET /api/logs",
+    "method": "GET",
+    "path": "/api/logs",
+    "file": "packages/core/src/webui/server.ts",
+    "line": 1424
+  },
+  {
+    "key": "GET /api/logs/export/trace",
+    "method": "GET",
+    "path": "/api/logs/export/trace",
+    "file": "packages/core/src/webui/server.ts",
+    "line": 1429
+  },
+  {
+    "key": "GET /api/logs/level",
+    "method": "GET",
+    "path": "/api/logs/level",
+    "file": "packages/core/src/webui/server.ts",
+    "line": 1445
+  },
+  {
+    "key": "GET /api/logs/stream",
+    "method": "GET",
+    "path": "/api/logs/stream",
+    "file": "packages/core/src/webui/server.ts",
+    "line": 1459
+  },
+  {
+    "key": "GET /api/notifications/config",
+    "method": "GET",
+    "path": "/api/notifications/config",
+    "file": "packages/core/src/webui/server.ts",
+    "line": 1619
+  },
+  {
+    "key": "GET /api/notifications/recent",
+    "method": "GET",
+    "path": "/api/notifications/recent",
+    "file": "packages/core/src/webui/server.ts",
+    "line": 1641
+  },
+  {
+    "key": "GET /api/processes",
+    "method": "GET",
+    "path": "/api/processes",
+    "file": "packages/core/src/webui/server.ts",
+    "line": 1464
+  },
+  {
+    "key": "GET /api/processes/:pid/probe-login",
+    "method": "GET",
+    "path": "/api/processes/:pid/probe-login",
+    "file": "packages/core/src/webui/server.ts",
+    "line": 1496
+  },
+  {
+    "key": "GET /api/qq-list",
+    "method": "GET",
+    "path": "/api/qq-list",
+    "file": "packages/core/src/webui/server.ts",
+    "line": 1363
+  },
+  {
+    "key": "GET /api/state/stream",
+    "method": "GET",
+    "path": "/api/state/stream",
+    "file": "packages/core/src/webui/server.ts",
+    "line": 1386
+  },
+  {
+    "key": "GET /api/status",
+    "method": "GET",
+    "path": "/api/status",
+    "file": "packages/core/src/webui/server.ts",
+    "line": 1026
+  },
+  {
+    "key": "GET /api/system",
+    "method": "GET",
+    "path": "/api/system",
+    "file": "packages/core/src/webui/server.ts",
+    "line": 1067
+  },
+  {
+    "key": "GET /api/system/backup/export",
+    "method": "GET",
+    "path": "/api/system/backup/export",
+    "file": "packages/core/src/webui/server.ts",
+    "line": 1233
+  },
+  {
+    "key": "GET /api/system/settings",
+    "method": "GET",
+    "path": "/api/system/settings",
+    "file": "packages/core/src/webui/server.ts",
+    "line": 1118
+  },
+  {
+    "key": "GET /api/system/storage",
+    "method": "GET",
+    "path": "/api/system/storage",
+    "file": "packages/core/src/webui/storage-routes.ts",
+    "line": 80
+  },
+  {
+    "key": "GET /api/ui",
+    "method": "GET",
+    "path": "/api/ui",
+    "file": "packages/core/src/webui/server.ts",
+    "line": 1698
+  },
+  {
+    "key": "GET /api/ui/public",
+    "method": "GET",
+    "path": "/api/ui/public",
+    "file": "packages/core/src/webui/server.ts",
+    "line": 1700
+  },
+  {
+    "key": "GET /api/update/check",
+    "method": "GET",
+    "path": "/api/update/check",
+    "file": "packages/core/src/webui/server.ts",
+    "line": 1039
+  },
+  {
+    "key": "POST /api/agreements/record-consent",
+    "method": "POST",
+    "path": "/api/agreements/record-consent",
+    "file": "packages/core/src/webui/server.ts",
+    "line": 946
+  },
+  {
+    "key": "POST /api/auth/change-password",
+    "method": "POST",
+    "path": "/api/auth/change-password",
+    "file": "packages/core/src/webui/server.ts",
+    "line": 742
+  },
+  {
+    "key": "POST /api/auth/check-strength",
+    "method": "POST",
+    "path": "/api/auth/check-strength",
+    "file": "packages/core/src/webui/server.ts",
+    "line": 731
+  },
+  {
+    "key": "POST /api/auth/totp/begin",
+    "method": "POST",
+    "path": "/api/auth/totp/begin",
+    "file": "packages/core/src/webui/server.ts",
+    "line": 787
+  },
+  {
+    "key": "POST /api/auth/totp/confirm",
+    "method": "POST",
+    "path": "/api/auth/totp/confirm",
+    "file": "packages/core/src/webui/server.ts",
+    "line": 825
+  },
+  {
+    "key": "POST /api/auth/totp/disable",
+    "method": "POST",
+    "path": "/api/auth/totp/disable",
+    "file": "packages/core/src/webui/server.ts",
+    "line": 868
+  },
+  {
+    "key": "POST /api/auth/totp/recovery-codes",
+    "method": "POST",
+    "path": "/api/auth/totp/recovery-codes",
+    "file": "packages/core/src/webui/server.ts",
+    "line": 904
+  },
+  {
+    "key": "POST /api/config/:uin",
+    "method": "POST",
+    "path": "/api/config/:uin",
+    "file": "packages/core/src/webui/server.ts",
+    "line": 1521
+  },
+  {
+    "key": "POST /api/debug/invoke",
+    "method": "POST",
+    "path": "/api/debug/invoke",
+    "file": "packages/core/src/webui/server.ts",
+    "line": 1293
+  },
+  {
+    "key": "POST /api/debug/invoke-stream",
+    "method": "POST",
+    "path": "/api/debug/invoke-stream",
+    "file": "packages/core/src/webui/server.ts",
+    "line": 1312
+  },
+  {
+    "key": "POST /api/debug/upload",
+    "method": "POST",
+    "path": "/api/debug/upload",
+    "file": "packages/core/src/webui/server.ts",
+    "line": 1335
+  },
+  {
+    "key": "POST /api/global-config",
+    "method": "POST",
+    "path": "/api/global-config",
+    "file": "packages/core/src/webui/server.ts",
+    "line": 1674
+  },
+  {
+    "key": "POST /api/login",
+    "method": "POST",
+    "path": "/api/login",
+    "file": "packages/core/src/webui/server.ts",
+    "line": 669
+  },
+  {
+    "key": "POST /api/logout",
+    "method": "POST",
+    "path": "/api/logout",
+    "file": "packages/core/src/webui/server.ts",
+    "line": 716
+  },
+  {
+    "key": "POST /api/logs/level",
+    "method": "POST",
+    "path": "/api/logs/level",
+    "file": "packages/core/src/webui/server.ts",
+    "line": 1449
+  },
+  {
+    "key": "POST /api/notifications/config",
+    "method": "POST",
+    "path": "/api/notifications/config",
+    "file": "packages/core/src/webui/server.ts",
+    "line": 1621
+  },
+  {
+    "key": "POST /api/notifications/test",
+    "method": "POST",
+    "path": "/api/notifications/test",
+    "file": "packages/core/src/webui/server.ts",
+    "line": 1648
+  },
+  {
+    "key": "POST /api/processes/:pid/load",
+    "method": "POST",
+    "path": "/api/processes/:pid/load",
+    "file": "packages/core/src/webui/server.ts",
+    "line": 1492
+  },
+  {
+    "key": "POST /api/processes/:pid/refresh",
+    "method": "POST",
+    "path": "/api/processes/:pid/refresh",
+    "file": "packages/core/src/webui/server.ts",
+    "line": 1494
+  },
+  {
+    "key": "POST /api/processes/:pid/unload",
+    "method": "POST",
+    "path": "/api/processes/:pid/unload",
+    "file": "packages/core/src/webui/server.ts",
+    "line": 1493
+  },
+  {
+    "key": "POST /api/system/backup/import",
+    "method": "POST",
+    "path": "/api/system/backup/import",
+    "file": "packages/core/src/webui/server.ts",
+    "line": 1254
+  },
+  {
+    "key": "POST /api/system/settings",
+    "method": "POST",
+    "path": "/api/system/settings",
+    "file": "packages/core/src/webui/server.ts",
+    "line": 1135
+  },
+  {
+    "key": "POST /api/system/storage/cleanup",
+    "method": "POST",
+    "path": "/api/system/storage/cleanup",
+    "file": "packages/core/src/webui/storage-routes.ts",
+    "line": 152
+  },
+  {
+    "key": "POST /api/system/storage/settings",
+    "method": "POST",
+    "path": "/api/system/storage/settings",
+    "file": "packages/core/src/webui/storage-routes.ts",
+    "line": 93
+  },
+  {
+    "key": "POST /api/system/tls/cert",
+    "method": "POST",
+    "path": "/api/system/tls/cert",
+    "file": "packages/core/src/webui/server.ts",
+    "line": 1187
+  },
+  {
+    "key": "POST /api/ui",
+    "method": "POST",
+    "path": "/api/ui",
+    "file": "packages/core/src/webui/server.ts",
+    "line": 1702
+  },
+  {
+    "key": "POST /api/ui/background",
+    "method": "POST",
+    "path": "/api/ui/background",
+    "file": "packages/core/src/webui/server.ts",
+    "line": 1724
+  }
+]

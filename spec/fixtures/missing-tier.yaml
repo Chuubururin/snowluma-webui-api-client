@@ -1,0 +1,8 @@
+# 派生自 SnowLuma 源码 · 非商业自用 · 不发包管理器
+openapi: 3.0.3
+info: { title: fixture, version: 0.0.0 }
+paths:
+  /api/logs:
+    get:
+      operationId: listLogs
+      responses: { '200': { description: ok } }

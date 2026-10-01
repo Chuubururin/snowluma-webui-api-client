@@ -1,0 +1,20 @@
+// 派生自 SnowLuma 源码 · 非商业自用 · 不发包管理器
+// tsconfig 走 tsc 的 JSONC 解析器，注释是被支持的（本文件只被 tsc 读取，没有别的 JSON.parse 消费者）。
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "target": "ES2022",
+    "strict": true,
+    "skipLibCheck": true
+  },
+  "include": ["tools/gen/probe.ts"],
+  // **这条不是冗余，删掉就会红**：`extends` 会连主配置（裁定 N29）新增的
+  // `exclude: ["tools/gen/probe.ts"]` 一起继承下来，而 exclude 优先于子配置的 include ——
+  // 实测：不设 `"exclude": []` 时本配置得到 include=["tools/gen/probe.ts"] 且
+  // exclude=["tools/gen/probe.ts"]，探针被自己排除掉，tsc 报 TS18003「No inputs were found」。
+  // 一句"自带 include 因此不受主配置影响"（初稿原话）对 include 成立、对 exclude 不成立。
+  "exclude": []
+}

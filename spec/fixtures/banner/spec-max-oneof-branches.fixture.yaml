@@ -1,0 +1,101 @@
+# 派生自 SnowLuma 源码 · 非商业自用 · 不发包管理器
+# 一份**结构合法但内容虚构**的 spec：4 条操作 + 两支 union，专门用来测
+# validateSpecDoc 在真实规模下的行为（横幅注入不能只看"首文件绿"，要看全量清单）。
+#
+# 分支数取 **5** 支：`spec/openapi.yaml` 实测 union 的最大分支数是 5
+# （`components.schemas.StateStreamFrame.oneOf.length` —— 终审 N-13 复核：本文件初稿写"3 支 =
+# 真 spec 最大分支数"是错的，真 spec 里 SSE 那一族就有 5 支，Go 批次还会更多）。
+# 五支都带 `additionalProperties: false` + 单值 enum tag ⇒ `ONEOF_BRANCH_OVERLAP` 零命中，
+# 这正是"合法 fixture"的前提：校验器只许报横幅缺失，报别的错就是 fixture 写坏了。
+openapi: 3.0.3
+info:
+  title: banner-fixture
+  version: 0.0.0
+security:
+  - bearer: []
+paths:
+  /api/fx-a:
+    get:
+      operationId: fx1GetA
+      x-replay-class: t3
+      x-verification-status: static-only
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FxUnion' }
+  /api/fx-b:
+    get:
+      operationId: fx1GetB
+      x-replay-class: t3
+      x-verification-status: static-only
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FxB' }
+  /api/fx-c:
+    get:
+      operationId: fx1GetC
+      x-replay-class: t3
+      x-verification-status: static-only
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FxB' }
+  /api/fx-d:
+    get:
+      operationId: fx1GetD
+      x-replay-class: t3
+      x-verification-status: static-only
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FxB' }
+components:
+  securitySchemes:
+    bearer: { type: http, scheme: bearer }
+  schemas:
+    FxUnion:
+      oneOf:
+        - $ref: '#/components/schemas/FxA'
+        - $ref: '#/components/schemas/FxB'
+        - $ref: '#/components/schemas/FxC'
+        - $ref: '#/components/schemas/FxD'
+        - $ref: '#/components/schemas/FxE'
+    FxA:
+      type: object
+      additionalProperties: false
+      required: [tag]
+      properties:
+        tag: { type: string, enum: [a] }
+    FxB:
+      type: object
+      additionalProperties: false
+      required: [tag]
+      properties:
+        tag: { type: string, enum: [b] }
+    FxC:
+      type: object
+      additionalProperties: false
+      required: [tag]
+      properties:
+        tag: { type: string, enum: [c] }
+    FxD:
+      type: object
+      additionalProperties: false
+      required: [tag]
+      properties:
+        tag: { type: string, enum: [d] }
+    FxE:
+      type: object
+      additionalProperties: false
+      required: [tag]
+      properties:
+        tag: { type: string, enum: [e] }

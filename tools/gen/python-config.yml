@@ -1,0 +1,18 @@
+# 派生自 SnowLuma 源码 · 非商业自用 · 不发包管理器
+# openapi-python-client 0.29.1 的生成配置（-c/--config 只接受这一个文件，CLI 没有头部选项）。
+#
+# 键名以已装包的 pydantic 模型为准（.venv-gen/Lib/site-packages/openapi_python_client/config.py
+# 的 ConfigFile）：是 `project_name_override` / `package_name_override`，
+# 计划草稿里的 `project_name` / `package_name` **不存在**，而 pydantic v2 默认忽略多余键 ——
+# 用错名不会报错，只会静默退回"`<openapi.info.title 的 kebab _case>-client`"这套包名，
+# 于是 generated/python/ 下的目录名跟所有下游引用（实现批次）对上不上。
+#
+# post_hooks 一旦显式声明就**整体替换**默认值（config.py: `if config_file.post_hooks is not None`），
+# 默认值是 meta=none 下的两条 ruff 命令。所以这里把 ruff 重新列出来，并把许可头部放在最后一条：
+# 头部由 add-header.py 注入，必须排在 ruff 之后，否则格式化会把这一行挪走。
+project_name_override: snowluma-webui
+package_name_override: snowluma_webui
+post_hooks:
+  - "ruff check . --fix-only --extend-select=I"
+  - "ruff format ."
+  - "python ../../tools/gen/add-header.py"

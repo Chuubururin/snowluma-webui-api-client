@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "types": ["node"]
+  },
+  "include": ["tools/**/*.ts", "adapters/typescript/**/*.ts", "vitest.config.ts"],
+  "//exclude": "N29：主检查面不得触到 git-ignored 的 generated/。tools/demo-*.test.ts 与 demo/** 经 demo/server/upstream.ts 传递依赖 generated，故整族排除；这里用 **glob** 而不是逐文件点名 —— 逐点名会漏（新增一个 tools/demo-xxx.test.ts 就静默把 generated/ 拖进主图，13 条 TS2307 就是这么来的），而 tsconfig.demo.json 的 include 本来就是同一个 glob，两边对齐才不会再分叉。这些被排除的文件由 typecheck:demo（tsconfig.demo.json）接管，不是没人验。",
+  "exclude": [
+    "tools/gen/probe.ts",
+    "tools/demo-*.test.ts",
+    "tools/helpers/demo-http.ts",
+    "tools/fixture.ts",
+    "tools/e2e-smoke.ts"
+  ]
+}

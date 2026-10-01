@@ -1,0 +1,70 @@
+{
+  "generatedAt": "2026-10-01T10:05:39.347Z",
+  "gitHead": "252e38ba4d6cc3a6930948705900731b839c425b",
+  "fixture": false,
+  "results": [
+    {
+      "id": "test",
+      "npmScript": "test",
+      "exit": 0,
+      "ok": true,
+      "tail": "✓ tools/demo-route-contract.test.ts (4 tests) 16ms / ↓ tools/demo-fixture.test.ts (5 tests | 5 skipped) / Test Files  56 passed | 3 skipped (59) / Tests  765 passed | 32 skipped (797) / Start at  18:05:25 / Duration  8.03s (tests 57%, import 26%, environment 11%, transform 5%, worker 1%) / Isolate  59 workers spawned ·"
+    },
+    {
+      "id": "validate",
+      "npmScript": "validate",
+      "exit": 0,
+      "ok": true,
+      "tail": "> validate / > tsx tools/validate-spec.ts spec/openapi.yaml / spec/openapi.yaml: 0 error / 0 warning"
+    },
+    {
+      "id": "drift",
+      "npmScript": "drift",
+      "exit": 0,
+      "ok": true,
+      "tail": "> drift / > tsx tools/check-drift.ts / { / \"upstreamOnly\": [], / \"specOnly\": [], / \"unclassified\": [], / \"anchorStale\": false / }"
+    },
+    {
+      "id": "inventory",
+      "npmScript": "inventory",
+      "exit": 0,
+      "ok": true,
+      "tail": "> inventory / > tsx tools/inventory.ts / extracted/: 55 routes, 95 models"
+    },
+    {
+      "id": "ui-coverage",
+      "npmScript": "ui-coverage",
+      "exit": 0,
+      "ok": true,
+      "tail": "> ui-coverage / > tsx tools/check-ui-coverage.ts / spec 操作 55 · effective 52 · write-only 3 · not-surfaced 0 · 未登记 0 · 出处 Tier A 11/11 / 七条断言全绿：每条操作都有归属、每个控件名都有出处、每条 4xx 都过 unwrap。"
+    },
+    {
+      "id": "typecheck:demo",
+      "npmScript": "typecheck:demo",
+      "exit": 0,
+      "ok": true,
+      "tail": "> typecheck:demo / > tsc --noEmit -p tsconfig.demo.json"
+    },
+    {
+      "id": "probe",
+      "npmScript": "probe",
+      "exit": 0,
+      "ok": true,
+      "tail": "> probe / > tsc --noEmit -p tsconfig.probe.json && tsc --noEmit -p tsconfig.gen-ts.json && tsc --noEmit -p tsconfig.demo.json && python tools/gen/probe.py / python 探针 OK：attrs（非 pydantic）+ 两条 union（LoginResult 两支、StateStreamFrame 五支）均无具名生成模块、以匿名 componentsschemas_<union>_type_N 试解析（`A | B`）+ 布尔单值 enum 退化为裸 bool"
+    },
+    {
+      "id": "test:py-adapter",
+      "npmScript": "test:py-adapter",
+      "exit": 0,
+      "ok": true,
+      "tail": "........................ / ---------------------------------------------------------------------- / Ran 24 tests in 0.002s / OK / . / ---------------------------------------------------------------------- / Ran 1 test in 0.001s / OK"
+    },
+    {
+      "id": "test:go-adapter",
+      "npmScript": "test:go-adapter",
+      "exit": 0,
+      "ok": true,
+      "tail": "> test:go-adapter / > tsx tools/run-go-test.ts / ok  \texample.com/sl/adapters\t(cached)"
+    }
+  ]
+}

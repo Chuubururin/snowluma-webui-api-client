@@ -1,0 +1,29 @@
+# 派生自 SnowLuma 源码 · 非商业自用 · 不发包管理器
+# oapi-codegen v2.8.0 的生成配置（tools.lock.json → generators['oapi-codegen']，版本保留 v 前缀）。
+#
+# 用**新版** config 形态：`generate` 是映射（键 `models` / `client`），不是老式的字符串列表。
+# 老式列表会被 main() 判为 old-config-style（该形态按上游注释"will be removed in the future"），
+# 而新版形态里 `package` / `output` / `compatibility` 字段名不变。
+#
+# 相对路径一律按**运行时 CWD（仓库根）**解析，不是相对本配置文件 —— 写成 ../generated 会跑到仓库外面。
+# 已实测：从仓库根跑 `oapi-codegen --config tools/gen/oapi-codegen.yaml spec/openapi.yaml`
+# 产出落在 generated/go/snowluma/，与下方 output 一致。
+package: snowluma
+output: generated/go/snowluma/types.gen.go
+generate:
+  models: true
+  client: true
+compatibility:
+  # findings Q5 附带发现：布尔 enum 默认会产出不带前缀的包级常量 `False`/`True`，
+  # 55 支操作铺开时同名必撞车；打开这个开关后常量名带上类型前缀。
+  always-prefix-enum-values: true
+# 许可头部：v2.8.0 没有 --include / --header，config 里也没有 header 字段
+# （tools.lock.json → generationConstraints['oapi-codegen'].headerMechanism），
+# 唯一持久入口是覆盖 imports.tmpl。模板覆盖挂在 `output-options.user-templates` 下
+# （codegen.OutputOptions.UserTemplates，实测顶层 `user-templates` 会报
+# `field user-templates not found in type main.configuration`）；
+# 值是**单行**时按文件路径读取（codegen.GetUserTemplateText），多行则当模板正文 —— 这里要的是前者。
+# 另一条路是已废弃的 CLI flag `-templates <dir>`（会把该目录**所有**文件当模板覆盖）。
+output-options:
+  user-templates:
+    imports.tmpl: tools/gen/templates/imports.tmpl

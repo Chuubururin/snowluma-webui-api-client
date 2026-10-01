@@ -1,0 +1,130 @@
+# 派生自 SnowLuma 源码 · 非商业自用 · 不发包管理器
+#
+# 上游探测编排：判定全部在 tools/upstream-sync.ts（可单测、可本机 npm run upstream:sync 复跑），
+# 这里只有分流。三条出口互斥——
+#   设施故障 = exit 2 = job 红且**什么都不开**；
+#   红类判定（path-broken / count-drift / operation-set-drift）= 工单，锚点不动；
+#   绿类（算术不变）= 只含 spec/anchor.json 的 PR，合入由 verify.yml 的独立冷克隆复验
+#   + 人工审核把关——本仓禁用 auto-merge，本 workflow 永不自合。
+# 装配前置（缺一处对应步骤会明确红而不是静默）：main 的 branch protection
+# 要求 `verify` 与 ≥1 次审批、label `upstream-sync`。
+name: upstream-sync
+
+on:
+  schedule:
+    - cron: '17 3 * * *' # 每日 03:17 UTC，错开整点减少排队抖动；跑在默认分支
+  workflow_dispatch:
+    inputs:
+      candidate:
+        description: '候选上游 40 位 SHA（留空 = 探测上游 main HEAD）'
+        required: false
+      dry_run:
+        description: '只出判定，不开 PR/issue、不动锚点'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - run: npm ci
+
+      - name: 判定
+        id: verdict
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ARGS=()
+          if [ -n "${{ inputs.candidate }}" ]; then ARGS=(--candidate "${{ inputs.candidate }}"); fi
+          npx tsx tools/upstream-sync.ts "${ARGS[@]}" --json verdict.json | tee verdict.log
+          echo "kind=$(grep -o 'VERDICT_KIND=.*' verdict.log | cut -d= -f2)" >> "$GITHUB_OUTPUT"
+          echo "sha=$(jq -r '.candidate // .anchor.commit' verdict.json)" >> "$GITHUB_OUTPUT"
+
+      - name: 摘要（判定全文进 run 页面，工单/PR 只是副本）
+        run: |
+          {
+            echo "## upstream-sync 判定"
+            echo ""
+            echo "kind=\`$(jq -r '.kind' verdict.json)\` · candidate=\`$(jq -r '.candidate // .anchor.commit' verdict.json)\`"
+            echo ""
+            echo '```json'
+            head -c 60000 verdict.json
+            echo ''
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 绿类：落新锚点（引擎内部还会再判一次，非 green 拒绝写）
+        if: steps.verdict.outputs.kind == 'green-advance' && !inputs.dry_run
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx tsx tools/upstream-sync.ts --candidate "${{ steps.verdict.outputs.sha }}" --commit-anchor
+
+      - name: 绿类：开 PR（只含 spec/anchor.json）
+        if: steps.verdict.outputs.kind == 'green-advance' && !inputs.dry_run
+        id: pr
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: auto/upstream-sync
+          delete-branch: true
+          commit-message: 'chore(anchor): 上游推进至 ${{ steps.verdict.outputs.sha }}（算术不变，零判断）'
+          title: 'chore(anchor): 上游推进 ${{ steps.verdict.outputs.sha }}'
+          body: |
+            由 upstream-sync 自动开启。判据与全部门禁语义见 `docs/concepts/upstream-sync.md`。
+            本 PR 只含 `spec/anchor.json`：哈希按候选字节重算，路由注册数 / API 操作数 /
+            模型键集合与 spec 端点集合逐项与现锚相同（否则不会走这条分支，而是 issue 工单）。
+            合入由 `verify` 冷克隆复验把关——它按新锚点 SHA 重拉 vendor，
+            与本 workflow 不共享工作树：写锚点的人不给自己发通行证。
+
+      - name: 绿类：开 PR 后等人工审核（本仓禁用 auto-merge，workflow 永不自合）
+        if: steps.pr.outputs.pull-request-number != ''
+        run: |
+          echo "绿类 PR 已开出：${{ steps.pr.outputs.pull-request-url }}"
+          echo "合入条件 = verify 冷克隆复验绿 + 人工审核；本 workflow 不挂 auto-merge、不自己合。"
+
+      - name: 红类：开/更新漂移工单（同一候选 SHA 幂等）
+        if: |
+          !inputs.dry_run &&
+          (steps.verdict.outputs.kind == 'path-broken' ||
+           steps.verdict.outputs.kind == 'count-drift' ||
+           steps.verdict.outputs.kind == 'operation-set-drift')
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          SHA="${{ steps.verdict.outputs.sha }}"
+          KIND="${{ steps.verdict.outputs.kind }}"
+          {
+            echo "<!-- upstream-sync:${SHA} -->"
+            echo
+            echo "判定：**${KIND}**（candidate \`${SHA}\`）。锚点未动——这条工单要的是人的判断。"
+            echo
+            echo '```json'
+            cat verdict.json
+            echo '```'
+            echo
+            echo '处置入口：`docs/guides/add-an-operation.md`；判据语义：`docs/concepts/upstream-sync.md`。'
+          } > issue-body.md
+          FOUND=""
+          for n in $(gh issue list --label upstream-sync --state open --json number --jq '.[].number'); do
+            if gh issue view "$n" --json body --jq .body | grep -q "upstream-sync:${SHA}"; then FOUND="$n"; break; fi
+          done
+          if [ -n "$FOUND" ]; then
+            gh issue edit "$FOUND" --body-file issue-body.md
+            echo "工单 #$FOUND 已按新判定更新（幂等：同 SHA 不重开）"
+          else
+            gh issue create --label upstream-sync \
+              --title "上游漂移工单 ${SHA:0:7}：${KIND}" --body-file issue-body.md
+          fi

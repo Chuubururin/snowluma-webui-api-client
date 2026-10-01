@@ -1,0 +1,25 @@
+// 派生自 SnowLuma 源码 · 非商业自用 · 不发包管理器
+// 终审 W7：tsconfig.probe.json 只检查 probe.ts（它刻意只 import types.gen.ts，见该文件
+// 注释 —— 对"验联合类型是否保住"是对的最小导入面，但对"调用方能不能 import 这份客户端"
+// 是盲区）。本配置补的就是盲区那半边：入口 index.ts 会把 sdk.gen.ts、client/、core/
+// 全部拉进类型检查 —— 恰好是 caller 真正 import 的那一半，此前从未被编译过。
+// 三条刻意的选择：
+//  · 不进主 tsconfig.json（裁定 N29：generated/ 缺席时全仓 tsc 必须仍然干净，本配置
+//    只在 `npm run probe` 路径上运行；冷克隆没有产物时它报 TS18003，与 probe.py 的
+//    "先跑 npm run generate"同性质，是产物缺失不是代码错误）。
+//  · moduleResolution: bundler —— hey-api 产物用无扩展名相对导入（`from './types.gen'`），
+//    NodeNext 会按 ESM 规则判 TS2835；bundler 是 hey-api 文档面向的消费形态，
+//    这不是放宽，是"按生成器假定的消费方式验"。
+//  · skipLibCheck 保留但不起作用：产物全是 .ts，不是 .d.ts（终审 B1 同一条事实的另一面）。
+{
+  "compilerOptions": {
+    "noEmit": true,
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "types": []
+  },
+  "include": ["generated/typescript/index.ts"]
+}

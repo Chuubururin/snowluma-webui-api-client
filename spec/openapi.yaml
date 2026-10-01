@@ -1,0 +1,3227 @@
+# 派生自 SnowLuma 源码 · 非商业自用 · 不发包管理器
+openapi: 3.0.3
+info:
+  title: SnowLuma WebUI 管理面 API
+  version: 0.0.0-slice
+  description: |
+    派生自 SnowLuma 源码 · 非商业自用 · 不发包管理器
+
+    本文件当前是**垂直切片**（客户端批次）：仅 12 个操作，用于打通 spec → 三家生成器 → 可编译产物。
+    全 55 操作属 Go 批次。`x-replay-class` 与 `x-verification-status` 两轴的取值真源分别是
+    `tools/lib/tiers.ts` 的清单与 `VERIFICATION_STATUSES`。
+  license:
+    name: Derived from SnowLuma (source-available, non-commercial) — private use only
+servers:
+  - url: http://localhost:5099
+security:
+  - bearer: []
+tags:
+  - name: auth
+  - name: system
+  - name: agreements
+  - name: streams
+  - name: debug
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+      description: |
+        服务端只从 Authorization 头取 token，无 query/cookie 回退（`extractBearerToken`）。
+        例外：头像代理 `/avatar/:uin` 走 path-scoped cookie（`readAvatarSessionToken`）。
+  schemas:
+    AuthGateError:
+      type: object
+      description: |
+        认证/门控中间件的响应（`server.ts:626-661`）。**字段名是 `status` 不是 `success`**。
+        两条 403 分支互斥：consent 闸排在改密闸之前。
+      required: [status, message]
+      properties:
+        status:
+          type: string
+          enum: [failed]
+        message:
+          type: string
+        consentRequired:
+          type: boolean
+        mustChangePassword:
+          type: boolean
+    StatusInfo:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [running]
+      description: |
+        线上形状是**常量** `{status:'running'}`（`server.ts:1031` 唯一 return）。
+        按裁定不用 `const`，单值域写 `enum`（设计口径/R22）。
+    AuthState:
+      type: object
+      required: [mustChangePassword]
+      properties:
+        mustChangePassword: { type: boolean }
+    LoginSuccess:
+      type: object
+      description: |
+        构造点唯一：`server.ts:713` 的成功 200 return
+        `{ success: true, token, mustChangePassword: result.mustChangePassword }`
+        —— 三字段在该字面量里恒在，故全部列入 required。
+      required: [success, token, mustChangePassword]
+      properties:
+        success: { type: boolean, enum: [true] }
+        token: { type: string }
+        mustChangePassword: { type: boolean }
+    LoginNeedsTotp:
+      type: object
+      description: |
+        构造点唯一：`server.ts:698` 的 needs-totp 200 return
+        `{ success: false, needsTotp: true }` —— 仅此两字段（无 message/token），required 据此。
+      required: [success, needsTotp]
+      properties:
+        success: { type: boolean, enum: [false] }
+        needsTotp: { type: boolean, enum: [true] }
+    LoginResult:
+      oneOf:
+        - $ref: '#/components/schemas/LoginSuccess'
+        - $ref: '#/components/schemas/LoginNeedsTotp'
+    SuccessFalseEnvelope:
+      type: object
+      description: |
+        服务端在失败时实际写出的**一般业务错误形状** `{ success: false, message }`。
+        构造点判据是字面形态，不是端点归属：`c.json` 字面量里 `success: false` 布尔标签
+        加 `message` 字符串，两键恒在 ⇒ required。实测（锚点 commit，grep 单行样式
+        `c\.json\(\{ *success: *false`）：`server.ts` 命中 72 处、`storage-routes.ts` 8 处；
+        其中纯两键 68 / 8 处，其余 4 处见下方排除项。本名取代旧名 `LoginFailure`
+        （终审波）—— 旧名误导：它的消费方含非 login 响应，如
+        `ui/background` 的 400/413/415/500（`server.ts:1734-1759` 六处构造点）与
+        `record-consent` 的 400/500 包装（`:949-951`、`:965-968`）。同形状新构造点
+        凭 `success:false`+`message` 标签即可认属本信封。不归本信封、各有专名的近邻：
+        200 needs-totp 分支 `LoginNeedsTotp`（`:698`，`success:false` 但**无 `message`**）、
+        带 `rules` 的 `PasswordTooWeak`（`:756`）、带 `currentVersion` 的
+        `ConsentVersionMismatch`（`:959`）、带 `lockedFields` 的 409（`storage-routes.ts:108-113`，
+        多行构造）；另 `server.ts:1528/:1562/:1565` 在两键上多写 `saved:false, applied:false`
+        （超集形状，所属端点归 Go 批次）。本信封**不**写 `additionalProperties: false`，
+        上述超集支在结构上不落空。
+      required: [success, message]
+      properties:
+        success: { type: boolean, enum: [false] }
+        message: { type: string }
+    SuccessOnly:
+      type: object
+      description: |
+        构造点：`server.ts:720` logout 处理器的 200 return `{ success: true }`
+        （`:716-721` 的 handler 无条件走到这一行，恒成功）。
+      required: [success]
+      properties:
+        success: { type: boolean, enum: [true] }
+    AgreementDoc:
+      type: object
+      description: |
+        构造点唯一：`consent.ts:170`（`loadAgreements()` 里 map 回调的唯一 return 字面量），
+        五个键在该字面量里恒在 ⇒ 全部 required。`id` 的取值域来自 `consent.ts:16-19` 的
+        `AGREEMENT_FILES` 字面量（只有 eula / privacy 两条）；其余四个字符串字段由
+        `parseAgreementMeta()`（`:121-133`）产出，三条 `??` 兜底保证读不到文件时也是
+        **空串而非缺键** ⇒ `text`/`title` 等可空但不可缺（`consent.ts:159` 的 `let text = ''`）。
+        与 `webui/src/lib/api/types.ts:70-76` 的客户端声明逐键一致，此处无分歧。
+      required: [id, title, declaredVersion, effectiveDate, text]
+      properties:
+        id: { type: string, enum: [eula, privacy] }
+        title: { type: string }
+        declaredVersion: { type: string }
+        effectiveDate: { type: string }
+        text: { type: string }
+    AgreementsPayload:
+      type: object
+      description: |
+        **required 以服务端构造点为准**：`consent.ts:226` 的
+        `return { version, consentRequired: isConsentRequired(), documents: docs }` ——
+        `getAgreementsPayload()` 全函数只有这一条 return，三键恒在（键集合
+        `version` / `consentRequired` / `documents`）。缓存里的客户端类型
+        `webui/src/lib/api/types.ts:78-84` 声明的是同样三键，故本处**无分歧**可记 ——
+        但优先级仍是"`consent.ts:226` 说了算"，不是"客户端恰好猜对"（设计口径）。
+        `documents` 的元素形状见 `AgreementDoc`（`consent.ts:170`）。
+      required: [version, consentRequired, documents]
+      properties:
+        version: { type: string, description: "内容哈希版本，非日期" }
+        consentRequired: { type: boolean }
+        documents:
+          type: array
+          items: { $ref: '#/components/schemas/AgreementDoc' }
+    ConsentRecorded:
+      type: object
+      description: |
+        构造点唯一：`server.ts:971` 的 200 return `{ success: true, version }` —— 两键恒在。
+        **与客户端类型的分歧（处理器为准，设计口径）**：`webui/src/lib/api/types.ts:86-91` 的
+        `RecordConsentResult` 把三个分支压成一个 `{ success; message?; currentVersion? }`，
+        **既没有 `version` 也不区分状态码** —— 那是客户端为了"非 2xx 也读 body"
+        （`client.ts:300-315`）做的合并，不是线上形状。此处按处理器拆成
+        200/400/409/500 四个形状，`version` 保留、`message` 不进入 200。
+      required: [success, version]
+      properties:
+        success: { type: boolean, enum: [true] }
+        version: { type: string }
+    ConsentVersionMismatch:
+      type: object
+      description: |
+        构造点唯一：`server.ts:958-961` 的 409 return
+        `{ success: false, message, currentVersion: current }`（`current` 取自 `:954`）。
+        `currentVersion` 是**必带**的：`:957` 的条件把"空串"与"版本不符"合到同一条分支，
+        而该分支无条件写出这个键 ⇒ 客户端"先 GET 再 POST"的闭环有机器可读依据。
+      required: [success, message, currentVersion]
+      properties:
+        success: { type: boolean, enum: [false] }
+        message: { type: string }
+        currentVersion: { type: string }
+    PasswordChanged:
+      type: object
+      description: |
+        构造点唯一：`server.ts:775` 的 200 return `{ success: true, requireRelogin: true }`
+        —— 两键恒在、且两键的值都是字面量 ⇒ `enum: [true]`（按裁定不用 `const`）。
+        **与客户端类型的分歧（处理器为准）**：`webui/src/lib/api/types.ts:68` 的
+        `ChangePasswordResult = { success: boolean; message?: string }` **没有 `requireRelogin`**，
+        `client.ts:563-574` 因此把它整体丢掉了 —— 而它正是设计口径回环的触发信号
+        （`:772` 的 `sessionTokens.clear()` 已把调用方自己的 token 作废）。缺口登记交实现批次。
+      required: [success, requireRelogin]
+      properties:
+        success: { type: boolean, enum: [true] }
+        requireRelogin: { type: boolean, enum: [true] }
+    PasswordFailure:
+      type: object
+      description: |
+        构造点四处，形状相同 `{ success: false, message }`：`server.ts:747`（"请求格式错误"）、
+        `:752`（"当前密码不正确"，唯一走 401 的那条）、`:761`（"新密码不得与旧密码相同"）、
+        `:767`（"密码修改失败"）。两键在每条字面量里恒在 ⇒ 全部 required。
+        **不含 `rules`** —— 带 `rules` 的是另一条分支 `PasswordTooWeak`（`:755-758`）。
+      required: [success, message]
+      properties:
+        success: { type: boolean, enum: [false] }
+        message: { type: string }
+      # 裁定 R23：这一行是本 schema 与上一段散文之间唯一的差别，也是散文里那句
+      # "不含 rules" 能不能算事实的唯一依据。缺了它，真实的
+      # `{success:false, message:'新密码不符合强度要求', rules:[…]}`（`:755-758` 的 400）
+      # 会同时命中 PasswordTooWeak 与 PasswordFailure 两支，而 oneOf 的语义是"恰好一支"
+      # ⇒ 合规客户端当场拒收服务端自己的正常回复。四个构造点各自只写两键，
+      # 所以 additionalProperties: false 在锚点提交上是真的，且 server.ts 一改就会被漂移检查打红。
+      additionalProperties: false
+    PasswordTooWeak:
+      type: object
+      description: |
+        构造点唯一：`server.ts:755-758` 的 400 return
+        `{ success: false, message, rules: evaluatePasswordRules(newPassword) }` ——
+        三键恒在 ⇒ `rules` 也是 required（这是它与 `PasswordFailure` 的唯一区别，
+        故两者不合并，见设计口径）。
+      required: [success, message, rules]
+      properties:
+        success: { type: boolean, enum: [false] }
+        message: { type: string }
+        rules:
+          type: array
+          items: { $ref: '#/components/schemas/PasswordRule' }
+    PasswordStrength:
+      type: object
+      description: |
+        构造点两处，同形状 `{ rules, valid }`：`server.ts:736`（JSON 解析失败时用空串兜底）
+        与 `:739`（正常路径）—— 两条 return 都无条件写出两个键 ⇒ 两者都 required。
+        **与客户端类型的分歧（处理器为准）**：`client.ts:553` 把内联响应类型写成
+        `{ rules?: PasswordRule[]; valid?: boolean }`（两个可选），紧接着 `:557-559`
+        又靠 `Array.isArray` + `typeof` 手工校验并抛 502 —— 那是对**传输层**的防御，
+        不是"线上可以缺键"的证据；缓存的三个构造点里没有任何一条会缺键。
+      required: [rules, valid]
+      properties:
+        rules:
+          type: array
+          items: { $ref: '#/components/schemas/PasswordRule' }
+        valid: { type: boolean }
+    PasswordRule:
+      type: object
+      description: |
+        **元素形状未经确证**：`evaluatePasswordRules()` 与 `PasswordRule` 类型都在缓存的
+        八个文件之外（`change-password-form` 组件里）。此处只声明"是一组对象"，
+        不凭想象补字段 —— 缺什么就空着并登记进设计口径缺口（做这件事）。
+        可确证的只有"它存在且被 `server.ts:736/:739/:756` 三处原样带出"：客户端
+        `client.ts:2` 从 `@/components/pages/change-password-form` 导入该类型，
+        而该路径不在缓存清单内 ⇒ 字段名一个都不写，连"它有几项"也无从确证（设计口径）。
+      additionalProperties: true
+    AdapterStatusLevel:
+      type: string
+      description: '`webui/src/types.ts:30` 的具名别名，五值闭集'
+      enum: [ok, warn, down, disabled, degraded]
+    QQInfo:
+      type: object
+      description: '`webui/src/types.ts:25-28`；`server.ts:1410`（SSE 支）与 `server.ts:1365`（REST 支）两处 `.map()` 字面量与之逐键相同 —— 两处都是关死的锚点'
+      required: [uin, nickname]
+      additionalProperties: false
+      properties:
+        uin: { type: string }
+        nickname: { type: string }
+    AdapterStatus:
+      type: object
+      description: |
+        `webui/src/types.ts:32-39`。`lastError` / `lastErrorAt` 带 `?` ⇒ 可选，不进 required；
+        这是"处理器写了什么"读不出来的那一类，只有类型侧证据（设计口径的兜底：
+        真机 schema diff 时"可选性判错"是最高频问题，本条要优先复核）。
+      required: [name, kind, status, detail]
+      properties:
+        name: { type: string }
+        kind: { type: string, enum: [httpServer, httpClient, wsServer, wsClient] }
+        status: { $ref: '#/components/schemas/AdapterStatusLevel' }
+        detail: { type: string }
+        lastError: { type: string }
+        # 设计口径的裁定（终审 W2 落地，原记给 Go 批次但缺陷已在交付物里）：oapi-codegen
+        # v2.8.0 把裸 number 映成 float32（types.gen.go 实测），epoch 秒 ≈1.75e9 远超 2^24
+        # ⇒ ULP ≥128 秒，时间戳光靠表示就错到分钟量级，且值落进 float32 后适配层修不回来。
+        lastErrorAt: { type: number, format: double }
+    AccountDatabaseMigration:
+      type: object
+      description: |
+        `webui/src/types.ts:41-49`。`total` / `progress` / `estimatedRemainingSeconds`
+        在 TS 里是 `number | null` —— 3.0.3 用 `nullable: true` 表达
+        （**不是** `type: [number, 'null']`，那是 3.1 的写法）。`error?: string` 可选。
+      required: [phase, usable, processed, total, progress, estimatedRemainingSeconds]
+      properties:
+        phase: { type: string, enum: [preparing, migrating, complete, failed] }
+        usable: { type: boolean }
+        processed: { type: number }
+        total: { type: number, nullable: true }
+        progress: { type: number, nullable: true }
+        estimatedRemainingSeconds: { type: number, nullable: true }
+        error: { type: string }
+    AccountConnections:
+      type: object
+      description: '`webui/src/types.ts:51-56`；`databaseMigration` 带 `?` ⇒ 可选'
+      required: [uin, nickname, adapters]
+      properties:
+        uin: { type: string }
+        nickname: { type: string }
+        adapters:
+          type: array
+          items: { $ref: '#/components/schemas/AdapterStatus' }
+        databaseMigration: { $ref: '#/components/schemas/AccountDatabaseMigration' }
+    HookProcessInfo:
+      type: object
+      description: |
+        `webui/src/types.ts:58-69`。**十个字段全无 `?`** ⇒ 全进 required，
+        含 `error: string`（无错时是空串而非缺键，所以它是必带的）。
+        `status` 的七值直接抄类型别名右侧，不另起 `AdapterStatusLevel` 那种具名 schema
+        （它在本仓库里只是个内联联合，没有独立导出名）。
+      required: [pid, name, path, injected, connected, loggedIn, uin, status, error, method]
+      properties:
+        pid: { type: number }
+        name: { type: string }
+        path: { type: string }
+        injected: { type: boolean }
+        connected: { type: boolean }
+        loggedIn: { type: boolean }
+        uin: { type: string }
+        status:
+          type: string
+          enum: [available, loading, connecting, loaded, online, error, disconnected]
+        error: { type: string }
+        method: { type: string }
+    StateFrameReady:
+      type: object
+      description: |
+        构造点唯一：`server.ts:1400` 的 `send({ kind: 'ready' })` —— 只写一个键，
+        故 `additionalProperties: false` 在锚点提交上为真（裁定 R23 同一条理由）。
+        它是"连接已建立、下面开始来快照帧"的信号，不是数据。
+      required: [kind]
+      additionalProperties: false
+      properties:
+        kind: { type: string, enum: [ready] }
+    StateFrameDropped:
+      type: object
+      description: |
+        背压标记，构造点唯一：`debug-stream.ts:23` 的
+        `{ kind: 'dropped', count: dropped }`，在一帧真正投递**之前**补发。
+        语义是"你错过了 count 帧快照" ⇒ 消费方应当改走 REST 重新取一次全量，
+        而不是把 `count` 当业务字段。`count >= 1`（攒到 0 时根本不会发这一帧，
+        见 `debug-stream.ts:22` 的 `if (dropped > 0)`）。
+      required: [kind, count]
+      additionalProperties: false
+      properties:
+        kind: { type: string, enum: [dropped] }
+        count: { type: integer, minimum: 1 }
+    StateFrameProcesses:
+      type: object
+      description: |
+        `types.ts:127`。信封两键 `{resource, data}`：`data` 是 `hookManager.listProcesses()`
+        的原样返回（`server.ts:1407`，未接 hookManager 时是 `[]`，`server.ts:1406`）。
+        **这是"整份快照"而非增量** —— 每帧都是当时的全量，消费方直接覆盖本地状态，不做 diff 合并。
+      required: [resource, data]
+      # 裁定 N27（评审）：信封**不关死**。这个对象唯一的构造点在
+      # `packages/core/src/webui/state-stream.ts` 的 `opts.send({ resource, data })`，
+      # 而该文件按 N26 不进缓存 —— 于是"只有这两键"是一条**没有锚点撑着的正面断言**：
+      # 缓存的 `StateStreamEvent` 成员是 TS 结构类型，它说"这些键以这些类型存在"，
+      # 对多余键完全沉默。上游哪天加第三个键（比如 `seq`），没有任何东西会变红，
+      # 而关死的形状会让真帧在 `oneOf` 上**零命中**，strict 生成物当场拒收活流量 ——
+      # 这恰好是本计划允许的唯一失败方向（漏报）的反面。
+      # 同批的 `HookProcessInfo` / `AccountConnections` 等四处正因为同样的理由没关死，
+      # `ready`（`server.ts:1400` 的单键字面量）与 `dropped`（`debug-stream.ts:23` 的双键字面量）
+      # 却因为构造点在缓存里而关得成 —— 差别不是风格，是有没有锚点。
+      additionalProperties: true
+      properties:
+        resource: { type: string, enum: [processes] }
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/HookProcessInfo' }
+    StateFrameQqList:
+      type: object
+      description: |
+        `types.ts:128`；`server.ts:1410` 用 `.map()` 现构 `{uin, nickname}` 字面量，
+        比 `QQInfo` 的实例更受限（只会写这两个键），故 `QQInfo.additionalProperties: false` 为真。
+        **但这一支的信封本身仍不关死**（裁定 N27，理由逐字见 `StateFrameProcesses` 上方）：
+        `server.ts:1410` 锚住的是 `data` 里那个元素，不是外面那层 `{resource, data}`。
+      required: [resource, data]
+      additionalProperties: true
+      properties:
+        resource: { type: string, enum: [qq-list] }
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/QQInfo' }
+    StateFrameConnections:
+      type: object
+      description: '`types.ts:129`；data 来源 `server.ts:1412` 的 `getConnectionStatuses()`'
+      required: [resource, data]
+      # 裁定 N27：不关死，理由见 `StateFrameProcesses` 上方那段。
+      additionalProperties: true
+      properties:
+        resource: { type: string, enum: [connections] }
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/AccountConnections' }
+    StateStreamFrame:
+      description: |
+        `/api/state/stream` 的一帧（五支契约见 `webui/src/lib/api/types.ts:124-129` 的
+        `StateStreamEvent`）。线上是 `data: <json>\n\n` —— 编码点是两处同模板：本路由的帧
+        一律走 `debug-stream.ts:26`（`server.ts:1394-1398` 把 `createFramePusher` 接上
+        `enqueue: ch.raw`，`:23` 的丢帧补发同一模板），`sse-response.ts:56` 的 `ch.send`
+        服务的是其他 SSE 路由，本路由不经它。
+        **没有 `event:` 字段** ⇒ 分派只能读负载内部，而负载上有**两个** tag 键：
+        控制帧走 `kind`（`ready` / `dropped`），快照帧走 `resource`（三条）。
+        按裁定 R22 不写 `discriminator`：3.0.3 上"两家可用"是假话，且本例连单 tag 都不满足，
+        双 tag 的 propertyName 更表达不了。收窄由适配层做（设计口径/设计口径）。
+      oneOf:
+        - $ref: '#/components/schemas/StateFrameReady'
+        - $ref: '#/components/schemas/StateFrameDropped'
+        - $ref: '#/components/schemas/StateFrameProcesses'
+        - $ref: '#/components/schemas/StateFrameQqList'
+        - $ref: '#/components/schemas/StateFrameConnections'
+    LogStreamReady:
+      type: object
+      description: |
+        构造点唯一：`server.ts:1460` 的 `ch.send({ type: 'ready' })` —— 只写一个键，
+        故 `additionalProperties: false`（裁定 R23，与 StateFrameReady 同一条理由）。
+      required: [type]
+      additionalProperties: false
+      properties:
+        type: { type: string, enum: [ready] }
+    LogStreamFrame:
+      description: |
+        `/api/logs/stream` 的一帧：就绪信号或一条日志。日志帧即 `LogEntry`
+        （`subscribeLogs` 吐出的 entry，`server.ts:1461` 原样 `ch.send(entry)`）。
+        两支以有无 `type: ready` 互斥（R22：无 discriminator；R24：LogEntry 的 required
+        键集不含 `type`，`{type:ready}` 不含 LogEntry 必填键，零重叠）。
+      oneOf:
+        - $ref: '#/components/schemas/LogStreamReady'
+        - $ref: '#/components/schemas/LogEntry'
+    DebugStreamReady:
+      type: object
+      description: |
+        构造点唯一：`server.ts:1355` 的 `send({ kind: 'ready' })` —— 只写一个键，
+        故关死（裁定 R23）。
+      required: [kind]
+      additionalProperties: false
+      properties:
+        kind: { type: string, enum: [ready] }
+    DebugStreamEvent:
+      type: object
+      description: |
+        `server.ts:1358` 的 `send({ kind: 'event', uin, event })`。`event` 是
+        `subscribeDebugEvents` 的回调入参，类型为 `JsonObject`
+        （`onebot/src/instance.ts:103`）——自由对象，不发明键；信封不关死（N27）。
+      required: [kind, uin, event]
+      additionalProperties: true
+      properties:
+        kind: { type: string, enum: [event] }
+        uin: { type: string }
+        event:
+          type: object
+          description: OneBot 事件原文（JsonObject），本 spec 不建模
+    DebugStreamAction:
+      type: object
+      description: |
+        `server.ts:1359` 的 `send({ kind: 'action', uin, ...rec })`。`rec` 来自
+        `observeActions`（`instance.ts:107`），其类型 `ActionObserver` 住在缓存外的
+        `./api-handler` —— spread 进帧的键无锚点，故只断言 `kind`/`uin` 两键，
+        信封不关死（N27）。
+      required: [kind, uin]
+      additionalProperties: true
+      properties:
+        kind: { type: string, enum: [action] }
+        uin: { type: string }
+    DebugStreamFrame:
+      description: |
+        `/api/debug/stream` 的一帧。背压丢帧标记复用 `StateFrameDropped`
+        （同一套 `createFramePusher`，`server.ts:1349-1353` 与 state/stream 的
+        `:1394-1398` 同模板，构造点同为 `debug-stream.ts:23`）。
+        四支以 `kind` 单值互斥（R22/R24）。
+      oneOf:
+        - $ref: '#/components/schemas/DebugStreamReady'
+        - $ref: '#/components/schemas/StateFrameDropped'
+        - $ref: '#/components/schemas/DebugStreamEvent'
+        - $ref: '#/components/schemas/DebugStreamAction'
+    TotpEnrollment:
+      type: object
+      required: [success, secret, otpauthUrl, issuer, accountName]
+      properties:
+        success: { type: boolean, enum: [true] }
+        secret: { type: string, description: 'base32 密钥（新绑或复用未过期席位，`totp.ts:153`）' }
+        otpauthUrl: { type: string, description: '`totp.toString()`（`totp.ts:157`），扫码用' }
+        issuer: { type: string }
+        accountName: { type: string }
+      description: |
+        `beginTotpEnrollment()` 的返回包上 `success`（`server.ts:816-822` 原样装配；
+        形状 `TotpEnrollment` 在 `core/src/webui/totp.ts:29-31`，B4 已锚定）。
+        注意 `secret` 会进响应体——消费方展示二维码后应丢弃内存副本，不落盘。
+    TotpRecoveryCodes:
+      type: object
+      required: [success, recoveryCodes]
+      properties:
+        success: { type: boolean, enum: [true] }
+        recoveryCodes:
+          type: array
+          items: { type: string }
+          description: '`generateRecoveryCodes(): string[]`（`totp.ts:115-121`，`xxxx-xxxx` 形，B4 已锚定）'
+      description: confirm / recovery-codes 共用的成功形（`server.ts:861` / `:932`）。
+    QqPortLoginInfo:
+      type: object
+      required: [port, uin, identityKnown]
+      properties:
+        port: { type: number }
+        uin: { type: string }
+        uid: { type: string }
+        nickName: { type: string }
+        identityKnown:
+          type: boolean
+          description: 本地 QQ 端点暴露了账号身份不等于原生协议会话就绪（`qq-port-probe.ts:27-28` 原文警告）
+      description: '`bridge/src/qq-port-probe.ts:22-30`（`probeProcessLoginInfo(): QqPortLoginInfo | null`，`hook-manager.ts:222` 透传；B5 已锚定）。'
+    ProcessActionResult:
+      type: object
+      required: [success, process]
+      properties:
+        success:
+          type: boolean
+          description: '`processInfo.status` 不为 error 即 true（`server.ts:1485`）——注意 200 里 success 也可为 false（status 为 error 时），消费方不得以 HTTP 码代状态'
+        process: { $ref: '#/components/schemas/HookProcessInfo' }
+      description: '`processAction` 统一 200 信封（`server.ts:1485`，load/unload/refresh 三路由共用）。'
+    PublicLogCleanupResult:
+      type: object
+      required: [deletedFiles, freedBytes, failures, status]
+      properties:
+        deletedFiles: { type: number }
+        freedBytes: { type: number }
+        failures:
+          type: array
+          items:
+            type: object
+            required: [file, message]
+            properties:
+              file: { type: string }
+              message: { type: string }
+        status: { $ref: '#/components/schemas/PublicLogStorageStatus' }
+      description: '`LogCleanupResult` 去掉 `status` 换上公开状态（`storage-management.ts:53-55`；底座 `log-file-transport.ts:40-45`）。'
+    TemporaryCleanupResult:
+      type: object
+      required: [deletedFiles, freedBytes, skippedActiveItems, failures]
+      properties:
+        deletedFiles: { type: number }
+        freedBytes: { type: number }
+        skippedActiveItems: { type: number }
+        failures:
+          type: array
+          items:
+            type: object
+            required: [item, message]
+            properties:
+              item: { type: string }
+              message: { type: string }
+      description: '`storage-management.ts:15-20`。'
+    AccountDataCleanupResult:
+      type: object
+      required: [category, uins, deletedFiles, freedBytes, failures]
+      properties:
+        category: { type: string, enum: [messages, media, reactions] }
+        uins:
+          type: array
+          items: { type: string }
+        deletedFiles: { type: number }
+        freedBytes: { type: number }
+        failures:
+          type: array
+          items:
+            type: object
+            required: [uin, file, message]
+            properties:
+              uin: { type: string }
+              file: { type: string }
+              message: { type: string }
+      description: '`storage-management.ts:71-76`。'
+    StorageCleanupResult:
+      description: |
+        `storage-routes.ts:32-35` 三支联合（按 scope 分流，`executeCleanup :275-285`）。
+        三支 `failures` 元素键不同（file / item / uin+file），故用 oneOf 而非合并；
+        R24：三支无共同必填键交集外的实例？`deletedFiles`/`freedBytes` 三支共有——
+        但 `status`（仅 PublicLog）、`skippedActiveItems`（仅 Temporary）、
+        `category`/`uins`（仅 AccountData）三组互斥键保证任一实例至多命中一支。
+      oneOf:
+        - $ref: '#/components/schemas/PublicLogCleanupResult'
+        - $ref: '#/components/schemas/TemporaryCleanupResult'
+        - $ref: '#/components/schemas/AccountDataCleanupResult'
+    StorageCleanupOnline:
+      type: object
+      required: [success, message, onlineUins]
+      properties:
+        success: { type: boolean, enum: [false] }
+        message: { type: string }
+        onlineUins:
+          type: array
+          items: { type: string }
+          description: '`error.uins` 原样透出（`storage-management.ts:87`）'
+      description: '`storage-routes.ts:173-177` 的 409（账号在线须先下线）。'
+    OneBotConfigSaveResult:
+      type: object
+      required: [success, saved, applied, online, errors, config, reloaded, message]
+      properties:
+        success: { type: boolean, enum: [true] }
+        saved: { type: boolean, enum: [true] }
+        applied: { type: boolean, description: '热重载是否生效；崩溃分支为 false（server.ts:1605）' }
+        online: { type: boolean, description: '会话是否在线（`:1589`；崩溃分支取当前实例有无，`:1606`）' }
+        errors:
+          type: array
+          items:
+            type: object
+            description: 元素形状在缓存外（`reloadConfig` 在 `manager`）；崩溃分支样本为 `{name,phase,message,at}`（`:1608`），此处不断言元素键
+        adapters:
+          type: object
+          description: 热重载后的适配器状态（`apply.adapters`，`manager` 缓存外，不断言键形）
+        config:
+          type: object
+          description: 请求原文回显（server.ts:1592 与 :1609 的 config 字面量即请求 body）
+        reloaded: { type: boolean, description: ' legacy 语义现仅在 awaitable 对账完成后才为 true（`:1593-1596` 注释）' }
+        message: { type: string, description: '三档文案按 online/applied 组合选择（`:1573-1577`）' }
+      description: '`POST /api/config/:uin` 的 200（含保存成功但热重载崩溃分支，`:1599-1611`，同形同码）。'
+    OneBotConfigSaveFailed:
+      type: object
+      required: [success, saved, applied, message]
+      properties:
+        success: { type: boolean, enum: [false] }
+        saved: { type: boolean, enum: [false] }
+        applied: { type: boolean, enum: [false] }
+        message: { type: string }
+      description: 保存前失败三档（400 请求格式错误 `:1528` / 400 校验拒绝 `:1562` / 500 落盘失败 `:1565`），同形。
+    TestSendResult:
+      type: object
+      required: [success, message]
+      properties:
+        success: { type: boolean, description: '`result.ok`（server.ts:1661）' }
+        status: { type: number, description: '渠道返回码；无则落键（`result.status` 可 undefined，`:1662`）' }
+        message: { type: string, description: '成功/失败文案三选一（`:1663-1665`）' }
+      description: '`POST /api/notifications/test` 的 200（`:1660-1666`）。'
+    LevelRejected:
+      type: object
+      required: [message, levels]
+      properties:
+        message: { type: string }
+        levels:
+          type: array
+          items: { $ref: '#/components/schemas/LogLevel' }
+      description: |
+        `POST /api/logs/level` 的 400（`server.ts:1453` 的 `{message, levels}`，
+        无 success 键，禁复用 SuccessFalseEnvelope）。
+    StorageSettingsLocked:
+      type: object
+      required: [success, message, lockedFields]
+      properties:
+        success: { type: boolean, enum: [false] }
+        message: { type: string }
+        lockedFields:
+          type: array
+          items: { $ref: '#/components/schemas/LogStorageSettingsField' }
+      description: |
+        `POST /api/system/storage/settings` 的 409（`storage-routes.ts:109-113`：
+        设置被环境变量锁定时，`lockedFields` 列出被锁字段，`error.fields` 原样透出）。
+    # ----实现批次：UiConfig 领域模型组（webui/src/types.ts:482-597 的逐字段翻译）----
+    # 翻译规则只有一条（设计口径：presence/optionality 以构造点为准；构造点在缓存外时，
+    # 按设计口径的兜底改以缓存类型文件的 `?` 判定 —— 设计口径里没有这条规则，旧注引用错位，
+    # 终审 W4 修正）：TS 里字段没写 `?` 就进 `required` —— 上游无 zod，
+    # 有无 `?` 是唯一可读的作者意图。全组里只有 UiLayoutItem 的 x/y/w/h/config 带 `?`。
+    # 整组一律**不写 additionalProperties: false**：UiConfig 唯一的构造/落盘点在缓存外的
+    # `./ui-config`（server.ts:80-86 导入），按裁定 N26/N27，"只有这些键"是没有锚点的
+    # 正面断言 —— 与的三支快照帧信封同一条理由，保持写开。
+    # 终审 W4 补一句证据类：也正因构造函数在缓存外，本组全部 required 断言（含下面
+    # UiConfigWithSuccess 的 [success, config]）依据的是**类型文件的 `?` 缺席**，不是
+    # `c.json(...)` 字面量 —— 与 DebugUploadOk、DebugInvokeResult 同属设计口径的
+    # "required 无从机械判定"类，真机 schema diff 时"可选性判错"要优先复核（同 AdapterStatus 那条）。
+    ThemeMode: { type: string, enum: [light, dark, system] }
+    AccentMode: { type: string, enum: [preset, custom] }
+    AccentScope: { type: string, enum: [sidebar, global] }
+    DarkIntensity: { type: string, enum: [soft, black] }
+    SidebarStyle: { type: string, enum: [follow, panel, accent] }
+    BackgroundType: { type: string, enum: [none, solid, gradient, image] }
+    Density: { type: string, enum: [cozy, compact] }
+    TimeFormat: { type: string, enum: ['12h', '24h'] }
+    Palette:
+      type: string
+      enum: [default, catppuccin-latte, catppuccin-frappe, catppuccin-macchiato, catppuccin-mocha,
+             rose-pine, rose-pine-moon, rose-pine-dawn, nord, everforest-dark, everforest-light]
+    LogsPreset: { type: string, enum: [dev, ops, minimal, custom] }
+    UiBackground:
+      type: object
+      description: |
+        `hasImage` / `imageVersion` 由服务端管理（`webui/src/types.ts:503`、`:506` 的注释点名"Server-managed"、
+        对客户端只读）。它们在 GET 响应里必现，但客户端写回去没有意义 —— 这条差异要进说明文字，
+        因为 3.0.3 的形状无法表达"只读字段"。
+      required: [type, color, gradient, imageOpacity, imageBlur, hasImage, imageMime, imageVersion]
+      properties:
+        type: { $ref: '#/components/schemas/BackgroundType' }
+        color: { type: string }
+        gradient: { type: string }
+        imageOpacity: { type: number }
+        imageBlur: { type: number }
+        hasImage: { type: boolean }
+        imageMime: { type: string }
+        # `imageVersion: integer` 已按的 number 收窄先例改为 number：
+        # TS（`webui/src/types.ts:507`）写的是 `number`，:506 注释说它是 cache-bust 计数器
+        # —— 但 bump 它的代码在缓存外的 `./ui-config`，"计数器必为整数"读的是注释语义，
+        # 不是构造点锚点（`StateFrameDropped.count` 敢写 integer 是因为构造点 `debug-stream.ts:23` 在缓存内）。
+        imageVersion: { type: number }
+    UiAppearance:
+      type: object
+      required: [mode, accentMode, accentPreset, accentCustom, accentScope, darkIntensity,
+                 palette, sidebarStyle, background, fontSans, fontSansCustom, fontMono,
+                 fontMonoCustom, uiScale, radius, density, reduceMotion, disableMotion,
+                 customPointerSystem, customContextMenu, highContrast, sidebarPinned, timeFormat,
+                 pollInterval, customCss, cssVars]
+      properties:
+        mode: { $ref: '#/components/schemas/ThemeMode' }
+        accentMode: { $ref: '#/components/schemas/AccentMode' }
+        accentPreset: { type: string }
+        accentCustom: { type: string }
+        accentScope: { $ref: '#/components/schemas/AccentScope' }
+        darkIntensity: { $ref: '#/components/schemas/DarkIntensity' }
+        palette: { $ref: '#/components/schemas/Palette' }
+        sidebarStyle: { $ref: '#/components/schemas/SidebarStyle' }
+        background: { $ref: '#/components/schemas/UiBackground' }
+        fontSans: { type: string }
+        fontSansCustom: { type: string, description: 仅当 fontSans === 'custom' 时生效（webui/src/types.ts:521） }
+        fontMono: { type: string }
+        fontMonoCustom: { type: string }
+        uiScale: { type: number }
+        radius: { type: number }
+        density: { $ref: '#/components/schemas/Density' }
+        reduceMotion: { type: boolean }
+        disableMotion: { type: boolean }
+        customPointerSystem: { type: boolean }
+        customContextMenu: { type: boolean }
+        highContrast: { type: boolean }
+        sidebarPinned: { type: boolean }
+        timeFormat: { $ref: '#/components/schemas/TimeFormat' }
+        pollInterval: { type: number }
+        customCss: { type: string, description: 仅在鉴权后应用；`/api/ui/public` 会剥掉它（webui/src/types.ts:540-541） }
+        cssVars:
+          type: object
+          additionalProperties: { type: string }
+    UiLayoutItem:
+      type: object
+      description: |
+        唯一有可选字段的一条：`x`/`y`/`w`/`h` 只有 overviewBlocks 用（`webui/src/types.ts:549` 注释
+        "nav items omit them"），`config` 由客户端按 widget 类型自行解释。
+      required: [id, visible]
+      properties:
+        id: { type: string }
+        visible: { type: boolean }
+        x: { type: number }
+        y: { type: number }
+        w: { type: number }
+        h: { type: number }
+        config:
+          type: object
+          additionalProperties: true
+          description: 客户端侧按 widget 类型解释，本 spec 不建模
+    UiLayout:
+      type: object
+      required: [overviewBlocks, overviewMobile, navItems, topbarItems]
+      properties:
+        overviewBlocks:
+          type: array
+          items: { $ref: '#/components/schemas/UiLayoutItem' }
+        overviewMobile:
+          type: array
+          items: { $ref: '#/components/schemas/UiLayoutItem' }
+        navItems:
+          type: array
+          items: { $ref: '#/components/schemas/UiLayoutItem' }
+        topbarItems:
+          type: array
+          items: { $ref: '#/components/schemas/UiLayoutItem' }
+    UiHighlightRule:
+      type: object
+      required: [keyword, color]
+      properties:
+        keyword: { type: string }
+        color: { type: string }
+    UiLogsPrefs:
+      type: object
+      required: [visibleLevels, maxLines, autoScroll, wrap, highlightRules, preset]
+      properties:
+        visibleLevels:
+          type: array
+          items: { type: string }
+        # TS（`webui/src/types.ts:577`）是 `maxLines: number`，无任何缓存内构造点 ⇒ 不收窄 integer
+        # （number 收窄先例，同 `imageVersion`）。
+        maxLines: { type: number }
+        autoScroll: { type: boolean }
+        wrap: { type: boolean }
+        highlightRules:
+          type: array
+          items: { $ref: '#/components/schemas/UiHighlightRule' }
+        preset: { $ref: '#/components/schemas/LogsPreset' }
+    UiPages:
+      type: object
+      required: [defaultRoute, logs, processesSort, configTab]
+      properties:
+        defaultRoute: { type: string }
+        logs: { $ref: '#/components/schemas/UiLogsPrefs' }
+        processesSort: { type: string }
+        configTab: { type: string }
+    UiConfig:
+      type: object
+      description: |
+        `ui/background` 的 200 由 `server.ts:1755-1756` 的 `writeBackgroundImage()` 返回值承载
+        （该函数在缓存外的 `ui-config.ts`），但它的**形状**就是缓存的 `webui/src/types.ts:592-597`。
+        读形状不需要读到写它的代码 —— 这也是裁定 N1 保留本端点、逐出 `ui/public` 的理由。
+      required: [version, appearance, layout, pages]
+      properties:
+        version: { type: number }
+        appearance: { $ref: '#/components/schemas/UiAppearance' }
+        layout: { $ref: '#/components/schemas/UiLayout' }
+        pages: { $ref: '#/components/schemas/UiPages' }
+    UiConfigWithSuccess:
+      type: object
+      required: [success, config]
+      properties:
+        success: { type: boolean, enum: [true] }
+        config: { $ref: '#/components/schemas/UiConfig' }
+    DebugEnvelopeFailure:
+      type: object
+      description: debug 面用 `status` 信封（与门控同形），不是 `success`。
+      required: [status, message]
+      properties:
+        status: { type: string, enum: [failed] }
+        message: { type: string }
+    DebugUploadOk:
+      type: object
+      required: [status, path, size]
+      properties:
+        status: { type: string, enum: [ok] }
+        path: { type: string }
+        # size 用 number 不用 integer：处理器 :1338 写的是 result.size，而 result 来自
+        # 缓存外的 ./debug-tools（server.ts:65 导入）。缓存里唯一给这个值定性的地方是
+        # webui/src/types.ts:401 的 size?: number。落盘字节数当然是整数 —— 但那是物理直觉，
+        # 不是锚点（评审 Minor 2 同一条理由）。
+        # 同上的 required 判定也属"构造点在缓存外"那一类（终审 W4）：path/size 两键的值来自
+        # streamUploadToDisk 的返回值，该函数在缓存外 —— required: [status,path,size] 里这两项
+        # 读的是 webui/src/types.ts:400-402 无 `?` 的形状证据（设计口径的兜底），不是 c.json(...)
+        # 构造点；真机 schema diff 时"可选性判错"要优先复核（同 AdapterStatus 那条）。
+        # format: double 是设计口径裁定、终审 W2 落地：>16 MiB 起 float32 不精确（ULP≈2 B），
+        # 且它是 200 的 required 字段 —— 每条成功响应都带，不是边缘形状。
+        size: { type: number, format: double }
+    DebugInvokeResult:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string }
+        # retcode 不收窄 integer：外层信封由缓存外的 action 实现构造（处理器只 `c.json(result)`
+        # 透传，`server.ts:1304-1305`），缓存内唯一证据是 `webui/src/types.ts:406` 的 `retcode?: number`。
+        # 终审 W4 补证据类：同一条"构造点在缓存外"不只影响 number-vs-integer —— retcode 的**可选性**
+        # （以及本 schema 唯一 required 的 `status`）同样读自 `?` 缺席（`webui/src/types.ts:404-410`），
+        # 无 `c.json(...)` 构造点锚定，属设计口径一类；真机 schema diff 优先复核（同 AdapterStatus 那条）。
+        retcode: { type: number }
+        data: {}
+        message: { type: string }
+        wording: { type: string }
+      description: |
+        `status` 恒有（透传自 action 返回）；`data` 故意不约束 —— 它是整个 action 目录的自由区，
+        在这里编造形状就是让 spec 撒谎。要类型安全请另起一份从 action 目录生成的 spec（设计口径）。
+        可选性按 `webui/src/types.ts:404-410` 的 `?` 判定：只有 `status` 不带 `?`。
+    UpdateCheckResult:
+      type: object
+      required: [current, latest, hasUpdate, htmlUrl, notes, publishedAt, checkedAt]
+      properties:
+        current: { type: string, description: 正在运行的构建版本（无 v 前缀） }
+        latest: { type: string, nullable: true, description: 最新稳定 release 版本；检查未完成时为 null }
+        hasUpdate: { type: boolean, description: 仅当 latest 严格新于 current 才为 true }
+        htmlUrl: { type: string, nullable: true, description: 最新 release 的 GitHub 页面 }
+        notes: { type: string, nullable: true, description: release notes（markdown，截断到 NOTES_MAX） }
+        publishedAt: { type: string, nullable: true, description: 最新 release 发布时间（ISO 8601） }
+        checkedAt: { type: number, description: 本条结果产生时间（epoch 毫秒） }
+        error: { type: string, description: 检查被跳过或失败的原因；失败不报 5xx，UI 静默降级 }
+      description: |
+        构造点：`update-check.ts:23-38`（`UpdateCheckResult` 声明，已锚定）；
+        GET handler `server.ts:1039-1042` 直接 `c.json(await getUpdateInfo(force))` 透传，
+        注释 `:1037-1038` 明写 "Never errors out — a failed check returns `{ hasUpdate: false, error }`"，
+        因此本端点没有 4xx/5xx handler 分支。`latest/htmlUrl/notes/publishedAt` 四个键
+        声明为可空非可选（键恒在、值可 null）——3.0.3 用 `nullable: true` 表达
+        （同 `AccountDatabaseMigration.total` 先例）；`error` 是唯一带 `?` 的键。
+    SystemInfo:
+      type: object
+      required: [hostname, platform, arch, archLabel, release, distro, uptime, processUptime, nodeVersion, cpu, memory, runtime]
+      properties:
+        hostname: { type: string }
+        platform: { type: string }
+        arch: { type: string }
+        archLabel: { type: string }
+        release: { type: string }
+        distro: { type: string }
+        uptime: { type: number }
+        processUptime: { type: number }
+        nodeVersion: { type: string }
+        cpu:
+          type: object
+          required: [model, cores, speedMHz, loadAvg, perCore, average]
+          properties:
+            model: { type: string, description: '`cpus[0]?.model ?? "unknown"`' }
+            cores: { type: number }
+            speedMHz: { type: number, description: '`cpus[0]?.speed ?? 0`' }
+            loadAvg: { type: array, items: { type: number }, description: '`os.loadavg()` 三元' }
+            perCore: { type: array, items: { type: number }, description: 逐核占用百分比，`sampleCpuLoad()` 钳位 0-100 }
+            average: { type: number }
+        memory:
+          type: object
+          required: [total, free, used, usagePercent]
+          properties:
+            total: { type: number }
+            free: { type: number }
+            used: { type: number }
+            usagePercent: { type: number }
+        runtime:
+          type: object
+          required: [pid, rss, heapTotal, heapUsed, external, arrayBuffers]
+          properties:
+            pid: { type: number }
+            rss: { type: number }
+            heapTotal: { type: number }
+            heapUsed: { type: number }
+            external: { type: number }
+            arrayBuffers: { type: number }
+      description: |
+        构造点：`server.ts:1067-1107` handler 字面量逐键，12 个顶层键恒在 ⇒ 全部 required。
+        形状证据类别：`hostname/platform/arch/release/uptime` 是 Node `os.*` API 可推的
+        string/number；`archLabel`/`distro` 来自模块级缓存（`:279` 起 `detectDistro()`，
+        进程寿命内不变 ⇒ string）；`nodeVersion`/`processUptime` 是 `process.version/uptime()`；
+        `cpu.loadAvg` 是 `os.loadavg()` ⇒ `number[]`；`cpu.perCore` 来自 `sampleCpuLoad()`
+        （`:1044-1065`，`Math.max(0, Math.min(100, …))` 钳位）⇒ `number[]`；
+        `memory.*` 来自 `os.totalmem()/freemem()` 推导；`runtime.*` 是 `process.memoryUsage()`
+        的六数直读。全部可推，无"证不了"字段。
+    SystemSettingsResponse:
+      type: object
+      required: [settings, hasCert, envOverrides, listeningPort, restartRequiredToApply]
+      properties:
+        settings:
+          type: object
+          required: []
+          description: |
+            `readRuntimeConfig()`（`common/src/runtime.ts:4-25` 的 `RuntimeConfig`）的四键投影
+            （`server.ts:1122-1127`）。`RuntimeConfig` 全字段可选 ⇒ 落键可能缺失 ⇒ required 置空。
+          properties:
+            webuiPort: { type: number }
+            webuiHost: { type: string }
+            tlsEnabled: { type: boolean, description: '`disk.webuiTls?.enabled ?? false`（server.ts:1125）' }
+            trustProxy: { type: string }
+        hasCert: { type: boolean, description: '`config/cert.pem` 与 `config/key.pem` 双存在（server.ts:1116）' }
+        envOverrides: { type: array, items: { type: string }, description: '`Object.keys(resolveRuntimeEnvOverrides(process.env))`（server.ts:1120）' }
+        listeningPort: { type: number, description: '`boundPort`（server.ts:534/:1803 赋值）' }
+        restartRequiredToApply: { type: boolean, description: 字面量 true；监听层变更只存盘不热生效（server.ts:1109-1113 注释） }
+      description: 构造点 `server.ts:1118-1133`。无 4xx/5xx。
+    LogStorageSettings:
+      type: object
+      required: [logMaxTotalMb, logRetainDays, logPerUin]
+      properties:
+        logMaxTotalMb: { type: number }
+        logRetainDays: { type: number }
+        logPerUin: { type: boolean }
+      description: '`storage-settings.ts:23-27`。'
+    LogStorageSettingsField:
+      type: string
+      enum: [logMaxTotalMb, logRetainDays, logPerUin]
+      description: '`storage-settings.ts:18-21`。'
+    LogStorageSettingsState:
+      type: object
+      required: [saved, effective, envOverrides]
+      properties:
+        saved: { $ref: '#/components/schemas/LogStorageSettings' }
+        effective: { $ref: '#/components/schemas/LogStorageSettings' }
+        envOverrides: { type: array, items: { $ref: '#/components/schemas/LogStorageSettingsField' } }
+      description: '`storage-settings.ts:29-33`（`deps.settings.read()` 的返回，`storage-routes.ts:83`）。'
+    PublicLogStorageStatus:
+      type: object
+      required: [state, totalBytes, maxTotalBytes, retainDays, perUinEnabled, fileCount, activeFileCount, droppedLines]
+      properties:
+        state: { type: string, enum: [disabled, healthy, warning, degraded], description: '`LogStorageState`（log-file-transport.ts:19）' }
+        totalBytes: { type: number }
+        maxTotalBytes: { type: number }
+        retainDays: { type: number }
+        perUinEnabled: { type: boolean }
+        fileCount: { type: number }
+        activeFileCount: { type: number }
+        droppedLines: { type: number }
+        lastError: { type: string }
+      description: '`LogStorageStatus` 去掉 directory 键（`log-file-transport.ts:21-32`；`Omit` 在 `storage-management.ts:42`）。'
+    TemporaryStorageSnapshot:
+      type: object
+      required: [totalBytes, fileCount, activeItemCount]
+      properties:
+        totalBytes: { type: number }
+        fileCount: { type: number }
+        activeItemCount: { type: number }
+      description: '`storage-management.ts:9-13`（`snapshotStreamStorage()` 的内嵌 temporary，`server.ts:588` 注入）。'
+    AccountStorageSnapshot:
+      type: object
+      required: [uin, online, messagesBytes, mediaBytes, reactionsBytes, totalBytes]
+      properties:
+        uin: { type: string }
+        nickname: { type: string }
+        online: { type: boolean }
+        messagesBytes: { type: number }
+        mediaBytes: { type: number }
+        reactionsBytes: { type: number }
+        totalBytes: { type: number }
+      description: '`storage-management.ts:32-40`。'
+    StorageSnapshot:
+      type: object
+      required: [logs, temporary, accounts, totals]
+      properties:
+        logs: { $ref: '#/components/schemas/PublicLogStorageStatus' }
+        temporary: { $ref: '#/components/schemas/TemporaryStorageSnapshot' }
+        accounts:
+          type: array
+          items: { $ref: '#/components/schemas/AccountStorageSnapshot' }
+        totals:
+          type: object
+          required: [logsBytes, temporaryBytes, accountDataBytes, managedBytes]
+          properties:
+            logsBytes: { type: number }
+            temporaryBytes: { type: number }
+            accountDataBytes: { type: number }
+            managedBytes: { type: number }
+      description: '`storage-management.ts:57-67`（`deps.storage.snapshot()`，`storage-routes.ts:84`）。'
+    LastStorageCleanup:
+      type: object
+      required: [scope, accountScope, deletedFiles, freedBytes, failureCount, at, failures]
+      properties:
+        scope: { type: string, enum: [logs, temporary, account, allAccounts], description: '`StorageCleanupRequest` 联合分支并集（storage-routes.ts:23-27）' }
+        accountScope: { type: string, enum: [global, single, all] }
+        category: { type: string, enum: [messages, media, reactions], description: '`AccountStorageCategory`（storage-management.ts:69）' }
+        uin: { type: string }
+        deletedFiles: { type: number }
+        freedBytes: { type: number }
+        failureCount: { type: number }
+        at: { type: string }
+        skippedActiveItems: { type: number }
+        failures:
+          type: array
+          items:
+            type: object
+            required: [item, message]
+            properties:
+              item: { type: string }
+              message: { type: string }
+      description: |
+        `LastStorageCleanup extends StorageCleanupAuditEvent`（`storage-routes.ts:37-51`）。
+        本 schema 描述非 null 形；200 字段可 null（`let lastCleanup = null`，`:69`），可空由 path 侧 `nullable` 承载。
+    TotpStatus:
+      oneOf:
+        - type: object
+          required: [enabled]
+          properties:
+            enabled: { type: boolean, enum: [false] }
+        - type: object
+          required: [enabled, remainingRecoveryCodes, label]
+          properties:
+            enabled: { type: boolean, enum: [true] }
+            remainingRecoveryCodes: { type: integer, description: '`totp.recoveryCodeHashes.length`（auth.ts:322）' }
+            label: { type: string }
+      description: |
+        `WebuiAuth.totpStatus()` 的内联判别 union（`core/src/webui/auth.ts:316-324`，已锚定）。
+        两支以 `enabled` 单值互斥关死（R22/R24：无 discriminator，实例不可能同时命中两支）。
+    MessageOnly:
+      type: object
+      required: [message]
+      properties:
+        message: { type: string }
+      description: |
+        无 `success` 键的裸 message 信封（与 `SuccessFalseEnvelope` 不同形，禁复用）。
+        首个用例：`GET /api/config/:uin` 的 400（`server.ts:1513`）。
+    HttpServerNetwork:
+      type: object
+      description: '`onebot/src/types.ts:42-48`（`allOf` 不展开写：四者组合差异小，逐一显式建模，required 与接口一致）。'
+      required: [name, messageFormat, reportSelfMessage, port]
+      properties:
+        name: { type: string }
+        enabled: { type: boolean }
+        accessToken: { type: string }
+        messageFormat: { type: string, enum: [array, string] }
+        reportSelfMessage: { type: boolean }
+        host: { type: string }
+        port: { type: number }
+        path: { type: string }
+        enableWebSocket: { type: boolean }
+    HttpClientNetwork:
+      type: object
+      description: '`onebot/src/types.ts:50-53`。'
+      required: [name, messageFormat, reportSelfMessage, url]
+      properties:
+        name: { type: string }
+        enabled: { type: boolean }
+        accessToken: { type: string }
+        messageFormat: { type: string, enum: [array, string] }
+        reportSelfMessage: { type: boolean }
+        url: { type: string }
+        timeoutMs: { type: number }
+    WsServerNetwork:
+      type: object
+      description: '`onebot/src/types.ts:55-60`。'
+      required: [name, messageFormat, reportSelfMessage, port]
+      properties:
+        name: { type: string }
+        enabled: { type: boolean }
+        accessToken: { type: string }
+        messageFormat: { type: string, enum: [array, string] }
+        reportSelfMessage: { type: boolean }
+        host: { type: string }
+        port: { type: number }
+        path: { type: string }
+        role: { type: string, enum: [Api, Event, Universal] }
+    WsClientNetwork:
+      type: object
+      description: '`onebot/src/types.ts:62-66`。'
+      required: [name, messageFormat, reportSelfMessage, url]
+      properties:
+        name: { type: string }
+        enabled: { type: boolean }
+        accessToken: { type: string }
+        messageFormat: { type: string, enum: [array, string] }
+        reportSelfMessage: { type: boolean }
+        url: { type: string }
+        role: { type: string, enum: [Api, Event, Universal] }
+        reconnectIntervalMs: { type: number }
+    OneBotNetworks:
+      type: object
+      required: [httpServers, httpClients, wsServers, wsClients]
+      properties:
+        httpServers: { type: array, items: { $ref: '#/components/schemas/HttpServerNetwork' } }
+        httpClients: { type: array, items: { $ref: '#/components/schemas/HttpClientNetwork' } }
+        wsServers: { type: array, items: { $ref: '#/components/schemas/WsServerNetwork' } }
+        wsClients: { type: array, items: { $ref: '#/components/schemas/WsClientNetwork' } }
+      description: '`onebot/src/types.ts:68-73`。'
+    StatusCommandConfig:
+      type: object
+      required: [enabled, swallow, cooldownSeconds, trigger]
+      properties:
+        enabled: { type: boolean }
+        swallow: { type: boolean }
+        cooldownSeconds: { type: number }
+        trigger: { type: string }
+      description: '`onebot/src/types.ts:79-92`（内建 `#sl` 状态命令，归一化后恒在）。'
+    HistorySyncConfig:
+      type: object
+      required: [enabled]
+      properties:
+        enabled: { type: boolean }
+      description: '`onebot/src/types.ts:113-116`（默认关闭）。'
+    OneBotConfig:
+      type: object
+      required: [networks, statusCommand, historySync]
+      properties:
+        networks: { $ref: '#/components/schemas/OneBotNetworks' }
+        statusCommand: { $ref: '#/components/schemas/StatusCommandConfig' }
+        historySync: { $ref: '#/components/schemas/HistorySyncConfig' }
+        notifications:
+          type: object
+          required: [channelIds]
+          properties:
+            channelIds: { type: array, items: { type: string } }
+      description: '`onebot/src/types.ts:119-129`（`loadOneBotConfig` 的返回，`onebot/src/config.ts`）。'
+    LogLevel:
+      type: string
+      enum: [trace, debug, info, success, warn, error]
+      description: '`LOG_LEVELS`（`common/src/logger.ts:155`）；`getLogLevel()` 返回其中之一（`:157`）。'
+    LogEntry:
+      type: object
+      required: [id, time, level, scope, message, line]
+      properties:
+        id: { type: number }
+        time: { type: string }
+        level: { $ref: '#/components/schemas/LogLevel' }
+        scope: { type: string }
+        uin: { type: number, description: '来源 logger 经 `.child({uin})` 派生时才有（logger.ts:19）' }
+        req: { type: number, description: '`runWithRequestId` 作用域内的关联 id（logger.ts:21）' }
+        message: { type: string }
+        line: { type: string, description: 渲染后的单行文本；export/trace 的 body 即逐行拼接它 }
+      description: '`common/src/logger.ts:15-28`（`getRecentLogs(): LogEntry[]` `:305`、`getLogSnapshot(): LogEntry[]` `:301`）。'
+    NotificationChannel:
+      type: object
+      required: [id, name, type, url, bodyTemplate, enabled]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        type: { type: string, enum: [webhook, email], description: '`NotificationChannelType`（config.ts:43）' }
+        url: { type: string, description: 'http(s) webhook 目标；email 渠道为空（config.ts:49-50）' }
+        bodyTemplate: { type: string }
+        enabled: { type: boolean }
+        headers:
+          type: object
+          additionalProperties: { type: string }
+          description: 额外出站请求头；webhook 专用（config.ts:53-54）
+        smtpHost: { type: string }
+        smtpPort: { type: number }
+        smtpSecure: { type: boolean }
+        smtpUser: { type: string }
+        smtpPass: { type: string }
+        from: { type: string }
+        to: { type: string }
+        subjectTemplate: { type: string }
+      description: '`core/src/notifications/config.ts:45-63`（email 六件套齐才算 email 渠道，`isEmailChannel` 同文件）。'
+    NotificationsConfig:
+      type: object
+      required: [version, debounceSeconds, channels]
+      properties:
+        version: { type: number }
+        debounceSeconds: { type: number }
+        channels:
+          type: array
+          items: { $ref: '#/components/schemas/NotificationChannel' }
+      description: '`core/src/notifications/config.ts:76-80`（`loadNotificationsConfig()` 的返回，server.ts:1619）。'
+    DeliveryRecord:
+      type: object
+      required: [time, uin, event, channelId, ok]
+      properties:
+        time: { type: number }
+        uin: { type: string }
+        event: { type: string, enum: [offline, online], description: '`NotificationEvent`（config.ts:41）' }
+        channelId: { type: string }
+        ok: { type: boolean }
+        status: { type: number }
+        error: { type: string }
+      description: '`core/src/notifications/manager.ts:32-40`（`getRecent(): DeliveryRecord[]`，server.ts:1645）。'
+    RKeyConfig:
+      type: object
+      required: [fallbackServers]
+      properties:
+        fallbackServers:
+          type: array
+          items: { type: string }
+          description: 归一化后只留良构去重 http(s) URL（global-config.ts:29-37）；空即关闭
+      description: '`onebot/src/types.ts:103-110`（opt-in 远端 rkey 兜底，默认关闭：不配就不连任何第三方）。'
+    GlobalSettings:
+      type: object
+      required: [rkey, musicSignUrl]
+      properties:
+        rkey: { $ref: '#/components/schemas/RKeyConfig' }
+        musicSignUrl: { type: string, description: '部署级统配；空串=用内建默认（global-config.ts:20-22）' }
+      description: '`onebot/src/global-config.ts:17-23`（`loadGlobalSettings()` 的返回，server.ts:1672）。'
+    DebugActionParam:
+      type: object
+      required: [name, type, required]
+      properties:
+        name: { type: string }
+        type: { type: string }
+        required: { type: boolean }
+        default: { description: '缺省值；上游 `unknown`，此处空 schema 即任意 JSON 值（types.ts:364）' }
+        desc: { type: string }
+        values:
+          type: array
+          items: { oneOf: [{ type: string }, { type: number }] }
+          description: 枚举候选（types.ts:366）
+        role: { type: string, description: '语义角色（group_id/user_id/image/…），供挂件选择；`FieldRole` 联合未在锚定内展开，此处只取 string（types.ts:368）' }
+      description: '`webui/src/types.ts:360-368`（`ActionDoc` 在缓存外 `action-kit`，此为同文件锚定镜像）。'
+    DebugActionDoc:
+      type: object
+      required: [name, aliases, readOnly, params]
+      properties:
+        name: { type: string }
+        aliases: { type: array, items: { type: string } }
+        category: { type: string }
+        summary: { type: string }
+        returns: { type: string }
+        readOnly: { type: boolean }
+        stream: { type: boolean, description: 'Stream API 动作走流式传输（types.ts:375）' }
+        invariants: { type: array, items: { type: string } }
+        params:
+          type: array
+          items: { $ref: '#/components/schemas/DebugActionParam' }
+      description: |
+        `webui/src/types.ts:370-382` 锚定镜像（`collectActionDocs()` 返回 `ActionDoc[]`，
+        `onebot/src/action-docs.ts:19-25`，按 `name` 排序后 `structuredClone` 交出）。
+        名称之外的存在性以镜像为准，镜像缺的字段不写。
+  parameters: {}
+  responses:
+    AuthGate401:
+      description: 缺 token 或 token 过期/无效（`server.ts:634`、`:638` 两条分支同形状）
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/AuthGateError' }
+    ConsentGate403:
+      description: |
+        **只有 consent 闸能出这一支**（`server.ts:645-650`，body 只带 `consentRequired`）。
+        给 `check-strength` / `change-password` 用 —— 它们在 `MUST_CHANGE_ALLOWLIST` 里，
+        所以改密闸那支对它们永久不可达（裁定 N6）。
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/AuthGateError' }
+    AuthGate403:
+      description: |
+        **两条闸都可能**（`:645-650` 带 `consentRequired`、`:652-653` 带 `mustChangePassword`）。
+        只给**两个 allowlist 都不在**的路径用；在 allowlist 里的路径**不得**引用本组件 ——
+        全仓只有中间件构造 403，allowlist 命中即该分支永久不可达（裁定 N6）。
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/AuthGateError' }
+    LoginFormatError:
+      description: |
+        请求体不是合法 JSON（`server.ts:679-683` try/catch，`:682` 返回 400），或
+        `completeWebuiLogin` 返回 `bad-request`（`server.ts:686-688` —— 该行号只证明
+        这条 400 分支存在）。**缺哪个字段（含缺 `password`）算 bad-request 的判定住在
+        未缓存的 `webui-login.ts`**（`server.ts:685` 把整个 body 递出边界），暂无可引用
+        行号；缺 `password` 归入本 400 现仅由缓存客户端签名与 `required: [password]` 旁证。
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/SuccessFalseEnvelope' }
+    LoginRejected:
+      description: 密码错或第二因子错（`server.ts:689-696`，两种文案）
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/SuccessFalseEnvelope' }
+    LoginLocked:
+      description: |
+        登录限速（5 次 / 15 分钟 / 按 IP）（`server.ts:673-676`）。**等待秒数只出现在中文文案里**，线上没有独立字段
+        （设计口径）—— 不提供文案正则 helper。
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/SuccessFalseEnvelope' }
+    LoginFailed:
+      description: TOTP 状态落盘失败（`server.ts:702-708`）
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/SuccessFalseEnvelope' }
+    RequestBodyRejected:
+      description: 仅"请求体不是合法 JSON"这一条（`server.ts:949-951` 的 `c.req.json()` catch）
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/SuccessFalseEnvelope' }
+    SaveFailed:
+      description: 服务端落盘失败（`server.ts:965-968`）
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/SuccessFalseEnvelope' }
+    StorageReadFailed:
+      description: 存储快照读取失败（`storage-routes.ts:89` 的 `{success:false,message}`，与 SuccessFalseEnvelope 同形）
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/SuccessFalseEnvelope' }
+    TotpDisabledInDev:
+      description: 开发模式禁用 2FA（`server.ts:782` 的 `{success:false,message}`，与 SuccessFalseEnvelope 同形）
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/SuccessFalseEnvelope' }
+    UinRejected:
+      description: 非法 uin（`server.ts:1513` 的 `{message}`，无 success 键，用 MessageOnly）
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/MessageOnly' }
+    ProcessesFailed:
+      description: 进程枚举抛错（`server.ts:1469` 的 `{list:[],message}`，无 success 键）
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [list, message]
+            properties:
+              list:
+                type: array
+                items: { $ref: '#/components/schemas/HookProcessInfo' }
+                description: 失败时恒为空数组
+              message: { type: string }
+    InvalidLogLevel:
+      description: 非法日志级别（`server.ts:1453` 的 `{message,levels}`，无 success 键）
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/LevelRejected' }
+    StorageSettingsLockedOut:
+      description: 设置被环境变量锁定（`storage-routes.ts:109-113`）
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/StorageSettingsLocked' }
+    StorageSettingsFormatError:
+      description: 请求体不是合法 JSON（`storage-routes.ts:98`）
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/SuccessFalseEnvelope' }
+    StorageSettingsInputError:
+      description: 设置输入非法（`storage-routes.ts:106`，`message` 为校验原文）
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/SuccessFalseEnvelope' }
+    StorageSettingsSaveFailed:
+      description: 保存失败（`storage-routes.ts:124-131` 两档 500；回滚是否完整看 message 文案）
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/SuccessFalseEnvelope' }
+    GlobalConfigRejected:
+      description: 请求体过大（413，`server.ts:1677`）/ 非法 JSON（400，`:1683`）/ 落盘失败（500，`:1691`），三档同信封
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/SuccessFalseEnvelope' }
+    UiConfigRejected:
+      description: 请求体过大（413，`server.ts:1707`）/ 非法 JSON（400，`:1713`）/ 保存失败（400，`:1720`，注意落盘失败此处是 400 不是 500），三档同信封
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/SuccessFalseEnvelope' }
+    NotificationsConfigRejected:
+      description: 请求体过大（413，`server.ts:1624`）/ 非法 JSON（400，`:1630`）/ 保存失败（500，`:1637`），三档同信封
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/SuccessFalseEnvelope' }
+    TotpBeginRejected:
+      description: 开发禁用（400，`server.ts:789`）/ 已开启（409，`:792`），同信封
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/SuccessFalseEnvelope' }
+    TotpConfirmRejected:
+      description: 开发禁用（400，`:827`）/ 已开启（409，`:830`）/ 请求格式错误（400，`:837`）/ 未开始绑定（400，`:847`），同信封
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/SuccessFalseEnvelope' }
+    TotpDisableRejected:
+      description: 开发禁用（400，`:869`）/ 未开启（400，`:873`）/ 请求格式错误（400，`:880`），同信封
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/SuccessFalseEnvelope' }
+    TotpRecoveryRejected:
+      description: 开发禁用（400，`:906`）/ 未开启（400，`:910`）/ 请求格式错误（400，`:916`），同信封
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/SuccessFalseEnvelope' }
+    ProbeLoginFailed:
+      description: 探测三档失败（`server.ts:1497` 无 hookManager / `:1500` 非法 pid / `:1507` 探测抛错），`{info:null,message}` 同形
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [info, message]
+            properties:
+              info:
+                nullable: true
+                description: 错误分支恒为 null
+              message: { type: string }
+    OneBotConfigSaveRejected:
+      description: 非法 uin（400，`:1523`，`{success:false,message}`，与 GET 的无 success 形不同）/ 请求格式错误（400，`:1528`）/ 校验拒绝（400，`:1562`）/ 落盘失败（500，`:1565`，文案固定），后三档同 `OneBotConfigSaveFailed` 形
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/OneBotConfigSaveFailed' }
+    TestSendUnavailable:
+      description: 通知子系统不可用（503，`:1649`）
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/SuccessFalseEnvelope' }
+    TestSendBadRequest:
+      description: 请求格式错误（400，`:1654`）/ 缺 channelId（400，`:1656`），同信封
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/SuccessFalseEnvelope' }
+    TestSendNoChannel:
+      description: 渠道不存在（404，`:1659`）
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/SuccessFalseEnvelope' }
+    SystemSettingsRejected:
+      description: 请求格式错误（400，`server.ts:1140`）/ 补丁非法（400，`:1143`，`coerceSettingsPatch` 原文透出）/ 落盘评估失败（400，`:1149`，`evaluateSettingsSave` 原文透出），同信封
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/SuccessFalseEnvelope' }
+    TlsCertRejected:
+      description: 请求格式错误（400，`:1192`）/ cert-key 非 PEM 字符串（400，`:1197`）/ 键对校验失败（400，`:1200`，`validateTlsPair` 原因透出）/ 写盘失败（500，`:1213`），同信封
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/SuccessFalseEnvelope' }
+    TlsCertDeleteRejected:
+      description: TLS 开启中禁删（400，`:1220`）/ 删除失败（500，`:1227`），同信封
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/SuccessFalseEnvelope' }
+    BackupExportFailed:
+      description: 导出失败（500，`server.ts:1250`）
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/SuccessFalseEnvelope' }
+    BackupImportRejected:
+      description: 备份过大（413，`:1257`，32MB 限）/ 请求格式错误（400，`:1263`/`:1266`）/ 恢复未预期错误（500，`:1281`），同信封。注意事务失败走 `describeRestoreFailure` 的动态码（`:1276-1278`），不在此处枚举，见操作描述 gap
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/SuccessFalseEnvelope' }
+    StorageCleanupRequestRejected:
+      description: 请求格式错误（400，`:157`）/ 请求校验失败（400，`:165`/`:180`，`parseCleanupRequest` 与输入错误原文透出），同信封
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/SuccessFalseEnvelope' }
+    StorageCleanupOnlineRejected:
+      description: 账号在线须先下线（409，`:173-177`，`onlineUins` 透出）
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/StorageCleanupOnline' }
+    StorageCleanupFailed:
+      description: 清理失败（500，`:183`）
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/SuccessFalseEnvelope' }
+    StorageCleanupRefreshFailed:
+      description: 清理已执行但统计刷新失败（500，`:219-225`，附 scope/cleanup/lastCleanup 快照）
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [success, message, scope, cleanup, lastCleanup]
+            properties:
+              success: { type: boolean, enum: [false] }
+              message: { type: string }
+              scope: { type: string }
+              cleanup: { $ref: '#/components/schemas/StorageCleanupResult' }
+              lastCleanup: { $ref: '#/components/schemas/LastStorageCleanup' }
+    ProcessActionUnavailable:
+      description: hook manager 不可用（503，`server.ts:1478`，三路由共用 `processAction` 信封）
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/SuccessFalseEnvelope' }
+    ProcessActionBadPid:
+      description: 非法 pid（400，`server.ts:1481`；非整数/`<=0`/`>MAX_PID=4194304`，三路由共用）
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/SuccessFalseEnvelope' }
+    ProcessActionFailed:
+      description: 动作执行抛错（500，`server.ts:1488`，`操作失败，请检查服务器日志`，三路由共用）
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/SuccessFalseEnvelope' }
+paths:
+  /api/status:
+    get:
+      operationId: getStatus
+      tags: [system]
+      summary: 服务存活探针；顺带为仍有效的 localStorage 会话续签 avatar cookie
+      x-replay-class: t1
+      x-verification-status: static-only
+      x-snowluma-side-effects: [cookie]
+      responses:
+        '200':
+          description: 固定返回运行中
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StatusInfo' }
+        '401': { $ref: '#/components/responses/AuthGate401' }
+  /api/auth/state:
+    get:
+      operationId: getAuthState
+      tags: [auth]
+      summary: 当前会话是否仍被要求改密（门控回环的读侧）
+      x-replay-class: t1
+      x-verification-status: static-only
+      responses:
+        '200':
+          description: 改密要求状态
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthState' }
+        '401': { $ref: '#/components/responses/AuthGate401' }
+  /api/auth/change-password:
+    post:
+      operationId: changePassword
+      tags: [auth]
+      summary: 修改面板密码
+      description: |
+        **T3：绝不自动重放**。成功后服务端清空全部会话（`server.ts:769-775` 的注释写明理由：
+        旧密码若已泄露，攻击者可能正持有当前 token），并返回 `requireRelogin: true`。
+        调用方必须把它当作"这个 token 到此为止"来处理，设计口径的回环因此不是可选的礼貌步骤。
+        403 只可能是 **consent 闸**那一支：`/api/auth/change-password` 在
+        `MUST_CHANGE_ALLOWLIST`（`server.ts:210`）里 ⇒ `:652-653` 的"请先修改密码"对它恒不可达，
+        但不在 `CONSENT_ALLOWLIST`（`:223-229` 的五条里没有它）⇒ `:645-650` 可达（裁定 N6）。
+        真实副作用（记在散文里，本操作**不写** `x-snowluma-side-effects`）：
+        ① `sessionTokens.clear()`（`server.ts:772`）当场作废**全部**会话，含调用方正在用的那一个；
+        ② `auth.setPassword`（`server.ts:764`）把新密码落盘（`auth` 对象的实现在八个缓存文件之外，
+        具体路径与写入方式未经确证）；③ `clearAvatarSessionCookie`（`server.ts:773`，
+        与 logout 用的是同一个 helper）清掉 avatar cookie。
+      x-replay-class: t3
+      x-verification-status: static-only
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: |
+                两键都 required，但**缺键不会走到 400 那条"请求格式错误"**：`:744-748` 的
+                try/catch 只在 body 不是合法 JSON 时触发；缺 `oldPassword` / `newPassword`
+                会在 `:749-750` 被 `typeof` 兜底成空串，随后分别作为 `:751` 与 `:754` 两道检查的入参。
+                两个谓词（`auth.verify` / `isStrongPassword`）由 `server.ts:41` 从 `./auth` 导入，
+                实现住在八个缓存文件之外 ⇒ 缓存只证明**分支结构存在、且缺键时确实会以空串调用它们**，
+                **不证明** `''` 会让 `auth.verify` 判负（⇒ 401）或让 `isStrongPassword` 判负
+                （⇒ 400 带 rules）——那两个结论未经确证，别按"缺键必然落到某条错误分支"来实现客户端。
+                即"两键都不得缺席"是按**能否成功**要求的（第一方客户端在 `client.ts:567` 的
+                body 字面量里恒发两键），格式错误分支只覆盖非 JSON body。
+              required: [oldPassword, newPassword]
+              properties:
+                oldPassword: { type: string }
+                newPassword: { type: string }
+      responses:
+        '200':
+          description: 已改密，**全部会话失效**
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PasswordChanged' }
+        # 400 有三条不同文案的分支，其中"强度不足"那条**额外带 rules**（server.ts:754-758）。
+        # 按状态码复用同一个 schema 会把这条信息抹平，所以在该状态码内用 oneOf 拆两个 schema。
+        # 注意 oneOf 的位置：它是 **Schema Object** 的关键字，写成 Response Object 的关键字
+        # 在 3.0.3 里非法，三家生成器都会当它不存在。
+        '400':
+          description: |
+            同一状态码下的两种形状：强度不足（带 `rules`）与"新旧密码相同"/"请求格式错误"/
+            "密码修改失败"（仅 `message`）。用 `oneOf` 而非合并成"全字段可选"，
+            否则 `rules` 的存在性信息就没了（设计口径/设计口径）。
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/PasswordTooWeak'
+                  - $ref: '#/components/schemas/PasswordFailure'
+        '401':
+          description: |
+            同一状态码下的两种来源，形状不同 ⇒ 按 400 的同一条理由用 `oneOf` 拆开：
+            **业务** 401 = 当前密码不正确（`server.ts:751-753`，`{success:false, message}`）；
+            **门控** 401 = token 缺失/过期（中间件 `:634` 与 `:638`，`{status:'failed', message}`，
+            见 `AuthGateError`）。中间件对 `/api/login` 才免检（`:631`），本路径不免检 ⇒ 门控那支
+            确实可达；只写业务那支会让自适应层把"token 死了要重登"误读成"密码错了要提示用户"。
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/PasswordFailure'
+                  - $ref: '#/components/schemas/AuthGateError'
+        '403': { $ref: '#/components/responses/ConsentGate403' }
+  /api/auth/check-strength:
+    post:
+      operationId: checkPasswordStrength
+      tags: [auth]
+      summary: 只判强度，不改动任何东西（回环里"先让用户试到合格"的那一步）
+      description: |
+        403 只可能是 consent 闸那一支：本路径在 `MUST_CHANGE_ALLOWLIST`（`server.ts:209`）
+        而不在 `CONSENT_ALLOWLIST`（`:223-229`）⇒ `:652-653` 不可达、`:645-650` 可达（裁定 N6）。
+        它之所以在改密白名单里，正是为了让"被强制改密"的会话能先反复试强度。
+      x-replay-class: t1
+      x-verification-status: static-only
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                password: { type: string }
+      responses:
+        '200':
+          description: |
+            即使请求体不是合法 JSON 也返回 200（`server.ts:736` 用空串兜底），
+            所以这个端点**没有** 4xx 业务分支。
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PasswordStrength' }
+        '401': { $ref: '#/components/responses/AuthGate401' }
+        '403': { $ref: '#/components/responses/ConsentGate403' }
+  /api/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: 密码登录，可选第二因子（TOTP）
+      description: |
+        中间件对 `/api/login` 直接放行（`server.ts:631` 的 `next()`），两条闸的 401/403
+        对它都不可达（裁定 N6）；本操作的 401 是处理器自己的业务分支 `LoginRejected`
+        （`server.ts:689-696`），不引用任何 AuthGate 组件。
+      security: []
+      x-replay-class: t2
+      x-verification-status: static-only
+      x-snowluma-side-effects: [persist, cookie, mutate-map]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: |
+                属性集**非穷尽**：第一方客户端在带第二因子时还会发送 `recoveryCode`
+                （`vendor/upstream/webui/src/lib/api/client.ts:499`），但其服务端处理在缓存
+                的八个文件内不可溯源（判定在未缓存的 `webui-login.ts`），故此处刻意不列；
+                不要因为"客户端没发"而反向补全，也不要贸然增补属性。
+              required: [password]
+              properties:
+                password: { type: string }
+                totp: { type: string }
+      responses:
+        '200':
+          description: |
+            成功**或**需要第二因子，二者都走 200。判别只看布尔 `success`（R22：无 discriminator）。
+            `needsTotp` 分支（`server.ts:698`）**没有** `message` 字段 —— 别把它标成 required。
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoginResult' }
+        '400': { $ref: '#/components/responses/LoginFormatError' }
+        '401': { $ref: '#/components/responses/LoginRejected' }
+        '429': { $ref: '#/components/responses/LoginLocked' }
+        '500': { $ref: '#/components/responses/LoginFailed' }
+  /api/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: 丢弃当前会话并清 avatar cookie
+      description: |
+        `/api/logout` 同时在 `MUST_CHANGE_ALLOWLIST`（`server.ts:215`）与
+        `CONSENT_ALLOWLIST`（`server.ts:228`）里，两条 403 分支对它永久不可达（裁定 N6），
+        故只声明门控 401。`sessionTokens.delete`（`server.ts:718`）改的是内存 map，
+        不在扫描器词表的可检形状内（词表只匹配零参 `.clear()` 与 `setXxxCookie(`），
+        扫描漏检、此处按源码只声明 `[cookie]`（`clearAvatarSessionCookie`，`server.ts:719`）；
+        map 变更写进本段说明文字。
+      x-replay-class: t2
+      x-verification-status: static-only
+      x-snowluma-side-effects: [cookie]
+      responses:
+        '200':
+          description: 总是成功（token 不存在也返回 success，`server.ts:716-721`）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuccessOnly' }
+        '401': { $ref: '#/components/responses/AuthGate401' }
+  /api/agreements:
+    get:
+      operationId: getAgreements
+      tags: [agreements]
+      summary: 当前协议集合与是否需要确认
+      description: |
+        **本操作不声明任何 403**（裁定 N6）。`/api/agreements` 同时在
+        `MUST_CHANGE_ALLOWLIST`（`server.ts:213`）与 `CONSENT_ALLOWLIST`（`server.ts:226`）里，
+        而全仓只有认证中间件构造 403 —— 两条闸各自 `!ALLOWLIST.has(reqPath)`
+        （`:645` 与 `:652`）对它恒假 ⇒ 两支 403 永久不可达。
+        它的响应体里的 `consentRequired` 才是门控的**读侧**（`consent.ts:226` 调
+        `isConsentRequired()`）：客户端靠它决定要不要弹协议页，而不是靠某次 403。
+        处理器 `server.ts:944` 是单行 `c.json(getAgreementsPayload())`，无任何 4xx 业务分支。
+      x-replay-class: t1
+      x-verification-status: static-only
+      responses:
+        '200':
+          description: 协议载荷（`consentGatePending` 的来源）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AgreementsPayload' }
+        '401': { $ref: '#/components/responses/AuthGate401' }
+  /api/agreements/record-consent:
+    post:
+      operationId: recordConsent
+      tags: [agreements]
+      summary: 记录操作者本人的协议同意
+      description: |
+        **T3：绝不自动重放**（设计口径"替操作者记录法律同意"一档）。
+        它替真人做出有法律含义的表示，脚本不得代签。
+        409 分支带 `currentVersion`（`server.ts:957-962`）—— 这是抓包几乎不可能覆盖的错误分支，
+        也是"客户端必须先 GET 再 POST 当前版本"这条约束的唯一机器可读依据。
+        **本操作不声明任何 403**（裁定 N6）：它也在两条 allowlist 里（`server.ts:214` 与 `:227`）。
+        成功分支除落盘外还就地放开进程内门控（`server.ts:969` `consentGatePending = false`）。
+        真实副作用（记在散文里，本操作**不写** `x-snowluma-side-effects`）：
+        ① `consent.ts:199-204` 的 `atomicWrite()` 把同意记录写盘（`fs.writeFileSync` `consent.ts:202`
+        + `renameSync` `consent.ts:203`，目录由 `ensureConfigDir` 的 `mkdirSync` `consent.ts:179` 兜底）；
+        ② 上面的进程内门控开关。两条都不进受控词表字段。
+      x-replay-class: t3
+      x-verification-status: static-only
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [version]
+              properties:
+                version: { type: string }
+      responses:
+        '200':
+          description: 已记录，进程内门控随之放开
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConsentRecorded' }
+        '400': { $ref: '#/components/responses/RequestBodyRejected' }
+        '401': { $ref: '#/components/responses/AuthGate401' }
+        '409':
+          description: 版本与服务端当前值不符（含 `currentVersion`）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConsentVersionMismatch' }
+        '500': { $ref: '#/components/responses/SaveFailed' }
+  /api/state/stream:
+    get:
+      operationId: streamState
+      tags: [streams]
+      summary: 进程/QQ 列表/连接状态的统一 SSE 推送
+      description: |
+        SSE 长连接。`EventSource` 带不了 `Authorization` 头，因此消费方必须走 fetch + reader ——
+        官方客户端自己就是这么做的：入口 `client.ts:592`，其下 `openSseChannel` 在
+        `client.ts:662` 另有一道**每帧 1 MiB 的客户端上限**（超了直接抛，不是服务端限制，
+        生成物不会继承它，适配层要自己决定同类保护）。同一处文档注释还写明
+        "畸形帧或 `onMessage` 抛错会被跳过" —— 那是**官方客户端的容忍度**，
+        不是服务端保证流一定合法，适配层不得据此省掉逐帧校验。
+        503 分支返回 **text/plain**，不是 JSON —— 别按 JSON 去建模它。
+        401/403 走的是普通 JSON 响应：中间件 `app.use('/api/*')` 排在路由之前，SSE 也不例外，
+        只有 200 才是 `text/event-stream`。
+        **403 用 `AuthGate403` 而非 `ConsentGate403`**：裁定 N6 的表里 `/api/state/stream`
+        两张 allowlist 都不在，所以 consent 支与改密支都可达，而 `AuthGateError` 用两个
+        可选布尔把这两支并在一个信封里（设计口径），故不拆 union。
+        **Go 侧禁用本操作的 `*WithResponse` 便捷路径**（终审 W5；findings Q3 当时把这条规则
+        派给了客户端批次，一直没落）。oapi-codegen v2.8.0 生成的 `StreamStateWithResponse` 实测
+        （types.gen.go `ParseStreamStateResponse`）是 `io.ReadAll(rsp.Body)` + `defer
+        rsp.Body.Close()` —— 对长连接等于把整条流缓冲完再关闭，流当场被它杀死；且
+        `StreamStateResponse` 结构里**没有 200 字段**（switch 只认 401/403 的 JSON），
+        缓冲成功了也拿不到帧。流消费必须走 `Client.StreamState`（裸 `*http.Response`，
+        Body 留给手写 scanner）；这与 `ui/background` 那条"没有任何生成函数消费 multipart
+        类型、须走 WithBody"（findings Q2）是同一族缺口。本段说明随 operation description
+        进三家生成物；`tools/validate-spec.test.ts` 钉住"200 为 text/event-stream 的操作
+        description 必须提到 WithResponse"，Go 批次新增的流端点漏写即红。
+      x-replay-class: t1
+      x-verification-status: static-only
+      x-snowluma-sse:
+        heartbeatMs: 15000
+        framePrefix: 'data: '
+        frameSuffix: "\n\n"
+        tagFields: [kind, resource]
+        droppedUnderBackpressure: true
+        note: >-
+          心跳间隔 15000 取自 `sse-response.ts:62`（装配前置核对时才把它拉进缓存，
+          在那之前，锚定清单里那条"已核实"是没有锚点撑着的），且心跳在 `start(ch)`
+          之后才挂上（`sse-response.ts:61-62`）——首帧 `ready`（`server.ts:1400`）先于任何
+          心跳投递；快照帧的去抖 50 ms 由调用点实参给出（`server.ts:1415`）；
+          `tagFields` 是**两个**而不是一个，因为控制帧与快照帧各用不同的键区分 ——
+          名字刻意不叫 `discriminatorField`：R22 之后本项目的判别一律不外泄成 discriminator 语义，
+          这个字段只是给适配层看的提示，不参与任何生成器行为。
+      responses:
+        '200':
+          description: SSE 流；每帧 `data:` 一行 JSON，形状见 `StateStreamFrame`
+          content:
+            text/event-stream:
+              schema: { $ref: '#/components/schemas/StateStreamFrame' }
+        '401': { $ref: '#/components/responses/AuthGate401' }
+        '403': { $ref: '#/components/responses/AuthGate403' }
+        '503':
+          description: |
+            构建未接 stateBus（`server.ts:1386-1391`，`:1390` 的
+            `c.text('state stream not configured', 503)`，注释里点名的"headless mode"）。
+            文本体，内容就是那句 `state stream not configured`；
+            客户端应退回 REST 轮询 —— 三个 resource 各有一枚现成的 T1 端点
+            （`/api/processes`、`/api/qq-list`、`/api/connections`）。
+          content:
+            text/plain:
+              schema: { type: string }
+  /api/debug/upload:
+    post:
+      operationId: uploadDebugFile
+      tags: [debug]
+      summary: 把请求体原样落盘到服务端临时目录，文件名走 query
+      description: |
+        **T3：不自动重放**（落盘临时文件）。真实副作用是往服务端临时目录写文件
+        （`server.ts:1337` 的 `streamUploadToDisk`，实现在缓存外的 `./debug-tools`）；
+        按裁定 R20，`x-snowluma-destructive` 的必标集只有 `/api/debug/invoke` 与
+        `/api/debug/invoke-stream`，本端点**不标**该扩展，校验器也不得因它没标而报错。
+        **这不是 multipart 端点**：请求体就是文件字节流，文件名在 `?filename=` 上。
+        生成侧若按 multipart 建模，三家都会发出服务端从不解析的信封。
+      x-replay-class: t3
+      x-verification-status: destructive-static-only
+      parameters:
+        - name: filename
+          in: query
+          required: false
+          schema: { type: string }
+          description: >-
+            服务端把这个名字原样交给 `streamUploadToDisk`（`server.ts:1337` 传的是
+            `c.req.query('filename')`，其类型允许 `undefined` ⇒ 「可选」这件事可从缓存证）。
+            缺省时服务端如何取名**未经确证**：实现在缓存外的 `./debug-tools`（`server.ts:65`
+            导入），缓存里只有 `:1333-1334` 那两句注释说它 raw bytes in the body、
+            streamed to disk with a byte cap、没给上限数字。可证的只有官方客户端自己的做法：
+            `client.ts:890` 用 `opts?.filename ?? file.name` 兜底，`client.ts:892` 对它
+            `encodeURIComponent` 后拼进 query。
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '200':
+          description: 已落盘
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DebugUploadOk' }
+        '400':
+          description: 流读取或落盘失败（`server.ts:1340`）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DebugEnvelopeFailure' }
+        '401': { $ref: '#/components/responses/AuthGate401' }
+        '403': { $ref: '#/components/responses/AuthGate403' }
+  /api/ui/background:
+    post:
+      operationId: uploadBackgroundImage
+      tags: [system]
+      summary: 上传登录/面板背景图
+      description: |
+        **T3：不自动重放**（覆写图片文件并写配置）。
+        这是本项目**唯一**的真 multipart 端点。Go 侧缺口在此（findings Q2）：
+        oapi-codegen v2.8.0 会生成 `UploadBackgroundImageMultipartBody` 之类的类型，
+        却**没有任何生成函数消费它**，实际调用须走
+        `...WithBody(ctx, contentType, io.Reader)` 自行编码 boundary。
+        413 有两个来源（Content-Length 粗筛 / 解码后大小），文案相同、判定层次不同。
+      x-replay-class: t3
+      x-verification-status: destructive-static-only
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        '200':
+          description: 已写入，返回更新后的完整 UI 配置
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UiConfigWithSuccess' }
+        '400':
+          description: multipart 解析失败，或 `file` 不是文件（`server.ts:1741` 解析失败 / `:1744` 非 File）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuccessFalseEnvelope' }
+        '401': { $ref: '#/components/responses/AuthGate401' }
+        '403': { $ref: '#/components/responses/AuthGate403' }
+        '413':
+          description: |
+            超过大小上限（两条判定路径：`server.ts:1733-1734` 的 Content-Length 粗筛，
+            阈值为 `MAX_BACKGROUND_BYTES + 1 MiB` 松弛量；`server.ts:1746-1747` 的解码后大小）。
+            两条文案同为"图片过大（上限 5MB）"。**上限的具体字节数未经确证**：
+            `MAX_BACKGROUND_BYTES` 定义在缓存外的 `./ui-config`（`server.ts:81` 导入），
+            "5MB" 只出现在服务端的中文文案里，不是缓存里的数值锚点。
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuccessFalseEnvelope' }
+        '415':
+          description: 非 PNG / JPEG / WebP（`server.ts:1752`，MIME 由 `sniffImageMime(bytes)` 魔数嗅探，`:1750`）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuccessFalseEnvelope' }
+        '500':
+          description: 写盘失败（`server.ts:1759`；`writeBackgroundImage` 抛错即落此支，`:1755`）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuccessFalseEnvelope' }
+    delete:
+      operationId: clearBackgroundImage
+      tags: [ui]
+      summary: 清除背景图（恢复默认无图状态）
+      x-replay-class: t3
+      x-verification-status: destructive-static-only
+      x-snowluma-destructive: true
+      responses:
+        '200':
+          description: '`{success:true,config}`（server.ts:1766，`clearBackgroundImage()` 的返回；与上传成功同形）'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UiConfigWithSuccess' }
+        '401': { $ref: '#/components/responses/AuthGate401' }
+        '403': { $ref: '#/components/responses/AuthGate403' }
+        '500':
+          description: 删除失败（`server.ts:1769`）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuccessFalseEnvelope' }
+  /api/debug/invoke:
+    post:
+      operationId: invokeDebugAction
+      tags: [debug]
+      summary: 把任意 OneBot action 透传执行
+      description: |
+        **整个 5099 面最危险的端点。** 它接受 `{uin, action, params}` 并执行
+        `oneBotManager.getInstance(uin).invokeAction(action, params)` —— 也就是**业务面
+        全部 action 目录**（发消息、改群、封成员）都能经此调用（设计口径）。
+        范围"只做管理面"因此不是安全边界；`params` 只能是自由对象，
+        生成的客户端对具体 action 参数**没有类型安全**（设计口径）。
+        **不提供便利包装**：原始 body 形状本身就是文档（设计口径闸门契约）。
+        **T3：绝不自动重放，且不自动重试**（`server.ts:1304` 的 await 可能已在服务端生效）。
+        真实副作用＝所选 action 的副作用（缓存内不可枚举，`invokeAction` 实现在缓存外）；
+        按的硬约束，T3 操作一律**不写** `x-snowluma-side-effects`，只记在本段散文里。
+      x-replay-class: t3
+      x-verification-status: destructive-static-only
+      x-snowluma-destructive: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [uin, action]
+              properties:
+                uin:
+                  type: string
+                  # 单引号保住了正则里的反斜杠；写法取 `[0-9]` 以避开 `\d` 的两层转义歧义
+                  pattern: '^[0-9]{5,10}$'
+                  description: 等价于 `server.ts:236` 的 UIN_REGEX
+                action: { type: string, minLength: 1 }
+                params:
+                  type: object
+                  additionalProperties: true
+                  description: 各 action 自定义；本 spec 不建模（见设计口径）。缺省时服务端按 `{}` 处理（`server.ts:1304` 的 `params ?? {}`）
+      responses:
+        '200':
+          description: |
+            action 的原样返回（`server.ts:1305` 的 `c.json(result)`，无中间包装层）。
+            外层是 `{status, retcode?, data?, message?, wording?}`
+            （`webui/src/types.ts:404-410`），**内层 `data` 由 action 决定**，此处不约束。
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DebugInvokeResult' }
+        '400':
+          description: 请求体非法 / uin 不合法 / action 缺失 / params 非对象（`server.ts:1295`、`:1297`、`:1298`、`:1300` 四条分支，同一信封）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DebugEnvelopeFailure' }
+        '401': { $ref: '#/components/responses/AuthGate401' }
+        '403': { $ref: '#/components/responses/AuthGate403' }
+        '404':
+          description: 该 uin 不在线（`server.ts:1303`）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DebugEnvelopeFailure' }
+  /api/debug/invoke-stream:
+    post:
+      operationId: streamDebugAction
+      tags: [debug]
+      summary: 把任意 OneBot action 经流式传输执行，逐帧回传浏览器
+      description: |
+        与 `invokeDebugAction` 同一危险等级（设计口径），区别只在传输：结果经
+        `buildStreamInvokeResponse`（`server.ts:1324-1328`，实现住在缓存外的
+        `./debug-tools`）以 SSE 逐帧回传，而非一次 `c.json`。
+        请求体四档校验与 invoke 逐字对应（`server.ts:1314` 请求格式错误、`:1316` 无效账号、
+        `:1317` action 必填、`:1319` params 非对象、`:1322` 账号不在线），信封全是
+        `{status:'failed',message}`（`DebugEnvelopeFailure`）。
+        200 是 `text/event-stream`：帧的 JSON 性由共享的 `createFramePusher` 管线保证
+        （`debug-stream.ts:26` 同模板），**帧内键形住在缓存外的 `./debug-tools`，
+        此处不断言**（N27；gap：锚定 `debug-tools` 后可细化）。
+        **T3：绝不自动重放，且不自动重试**（流已发出的帧无法收回）。
+        **Go 侧禁用本操作的 `*WithResponse` 便捷路径**（`WithResponse` 会把长连接缓冲致死；
+        警告规则覆盖本操作）。
+        T3 操作一律**不写** `x-snowluma-side-effects`，真实副作用＝所选 action 的副作用。
+      x-replay-class: t3
+      x-verification-status: destructive-static-only
+      x-snowluma-destructive: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [uin, action]
+              properties:
+                uin:
+                  type: string
+                  pattern: '^[0-9]{5,10}$'
+                  description: 等价于 `server.ts:236` 的 UIN_REGEX（`server.ts:1316` 实测）
+                action: { type: string, minLength: 1 }
+                params:
+                  type: object
+                  additionalProperties: true
+                  description: 各 action 自定义；本 spec 不建模（见设计口径）
+      responses:
+        '200':
+          description: SSE 帧流（逐帧为 JSON 对象；内键形见本操作 description 的 gap 说明）
+          content:
+            text/event-stream:
+              schema:
+                type: object
+                description: 帧是 JSON（共享管线保证），内键不断言
+        '400':
+          description: 请求体非法 / uin 不合法 / action 缺失 / params 非对象（`server.ts:1314`、`:1316`、`:1317`、`:1319` 四条分支，同一信封）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DebugEnvelopeFailure' }
+        '401': { $ref: '#/components/responses/AuthGate401' }
+        '403': { $ref: '#/components/responses/AuthGate403' }
+        '404':
+          description: 该 uin 不在线（`server.ts:1322`）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DebugEnvelopeFailure' }
+
+  /api/update/check:
+    get:
+      operationId: checkUpdate
+      tags: [system]
+      summary: 对比当前构建与最新稳定 release 的咨询式检查；只提示，从不下载或应用更新
+      x-replay-class: t1
+      x-verification-status: static-only
+      x-snowluma-side-effects: []
+      parameters:
+        - name: force
+          in: query
+          required: false
+          description: |
+            绕过服务端缓存的"立即检查"按钮。判据取字面量：`server.ts:1040` 的
+            `=== 'true' || === '1'`（注释示例 `?force=1`）。上游从不把它解析成布尔，
+            spec 同样不发明 boolean。
+          schema: { type: string, enum: ['true', '1'] }
+      responses:
+        '200':
+          description: 检查结果；检查失败也走 200（折叠进 `error` 字段，`server.ts:1037-1038` 注释）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UpdateCheckResult' }
+        '401': { $ref: '#/components/responses/AuthGate401' }
+        '403': { $ref: '#/components/responses/AuthGate403' }
+  /api/system:
+    get:
+      operationId: getSystem
+      tags: [system]
+      summary: 主机/进程运行时快照（os.* 与 process.* 直读）
+      x-replay-class: t1
+      x-verification-status: static-only
+      x-snowluma-side-effects: []
+      responses:
+        '200':
+          description: 固定形状的运行态快照（12 个顶层键恒在）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SystemInfo' }
+        '401': { $ref: '#/components/responses/AuthGate401' }
+        '403': { $ref: '#/components/responses/AuthGate403' }
+  /api/system/settings:
+    get:
+      operationId: getSystemSettings
+      tags: [system]
+      summary: WebUI 监听配置与生效状态（读盘即状，只存盘不热生效）
+      x-replay-class: t1
+      x-verification-status: static-only
+      x-snowluma-side-effects: []
+      responses:
+        '200':
+          description: 固定五键（server.ts:1121-1131）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SystemSettingsResponse' }
+        '401': { $ref: '#/components/responses/AuthGate401' }
+        '403': { $ref: '#/components/responses/AuthGate403' }
+    post:
+      operationId: saveSystemSettings
+      tags: [system]
+      summary: 保存监听配置（校验 + 落盘，重启生效）
+      x-replay-class: t3
+      x-verification-status: destructive-static-only
+      x-snowluma-destructive: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: 补丁形状由 `coerceSettingsPatch` 在服务端校验（`system-settings` 模块，缓存外）；非法补丁走 400 并透出原文，故请求体只约束为对象
+      responses:
+        '200':
+          description: '`{success:true,settings,restartRequiredToApply}`（server.ts:1151-1160；settings 四键投影与 GET 同形，值取落盘后 `saved`）'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, settings, restartRequiredToApply]
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  settings:
+                    type: object
+                    required: []
+                    properties:
+                      webuiPort: { type: number }
+                      webuiHost: { type: string }
+                      tlsEnabled: { type: boolean }
+                      trustProxy: { type: string }
+                  restartRequiredToApply: { type: boolean, enum: [true] }
+        '400': { $ref: '#/components/responses/SystemSettingsRejected' }
+        '401': { $ref: '#/components/responses/AuthGate401' }
+        '403': { $ref: '#/components/responses/AuthGate403' }
+  /api/system/storage:
+    get:
+      operationId: getSystemStorage
+      tags: [system]
+      summary: 日志/暂存/分账号存储快照与最近一次清理审计
+      x-replay-class: t1
+      x-verification-status: static-only
+      x-snowluma-side-effects: []
+      responses:
+        '200':
+          description: settings/snapshot/lastCleanup 三键（storage-routes.ts:82-86）；无清理记录时 lastCleanup 为 null
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [settings, snapshot]
+                properties:
+                  settings: { $ref: '#/components/schemas/LogStorageSettingsState' }
+                  snapshot: { $ref: '#/components/schemas/StorageSnapshot' }
+                  lastCleanup: { $ref: '#/components/schemas/LastStorageCleanup', nullable: true }
+        '401': { $ref: '#/components/responses/AuthGate401' }
+        '403': { $ref: '#/components/responses/AuthGate403' }
+        '500': { $ref: '#/components/responses/StorageReadFailed' }
+  /api/auth/totp:
+    get:
+      operationId: getTotpStatus
+      tags: [auth]
+      summary: 当前会话的 TOTP 开启状态与剩余恢复码数
+      x-replay-class: t1
+      x-verification-status: static-only
+      x-snowluma-side-effects: []
+      responses:
+        '200':
+          description: '`auth.totpStatus()` 的判别 union（auth.ts:316-324）；未开启时只有 enabled 键'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TotpStatus' }
+        '400': { $ref: '#/components/responses/TotpDisabledInDev' }
+        '401': { $ref: '#/components/responses/AuthGate401' }
+        '403': { $ref: '#/components/responses/AuthGate403' }
+  /api/config/{uin}:
+    get:
+      operationId: getOneBotConfig
+      tags: [config]
+      summary: 某账号的 OneBot 配置（只读：GET 永不落盘补默认）
+      description: 只读语义见 `server.ts:1514-1516` 注释（持久化文件由实例启动或 POST 创建）。
+      x-replay-class: t1
+      x-verification-status: static-only
+      x-snowluma-side-effects: []
+      parameters:
+        - name: uin
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9]{5,10}$'
+          description: 等价于 `server.ts:236` 的 UIN_REGEX（单引号保反斜杠，`[0-9]` 避 `\d` 转义歧义；起由派生守卫执法）
+      responses:
+        '200':
+          description: '`{config}`（server.ts:1517-1518，`loadOneBotConfig`）'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [config]
+                properties:
+                  config: { $ref: '#/components/schemas/OneBotConfig' }
+        '400': { $ref: '#/components/responses/UinRejected' }
+        '401': { $ref: '#/components/responses/AuthGate401' }
+        '403': { $ref: '#/components/responses/AuthGate403' }
+    post:
+      operationId: saveOneBotConfig
+      tags: [config]
+      summary: 保存某账号 OneBot 配置（校验 + 落盘 + 热重载，崩溃分支同码）
+      description: |
+        损坏的旧文件不拦路（`server.ts:1540-1548`）：读旧失败记 warn，按新提交全量校验落盘。
+        提交即全量新配置（`assertValidOneBotConfig(body)`，`onebot/src/config.ts` 锚定）。
+        落盘与热重载是两段：落盘成 + 热重载崩 = 200 但 `applied:false`（`:1599-1611`），
+        消费方必须读 `applied` 而不能以 HTTP 码代状态（与 `ProcessActionResult.success` 同一教训）。
+      x-replay-class: t3
+      x-verification-status: destructive-static-only
+      x-snowluma-destructive: true
+      parameters:
+        - name: uin
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9]{5,10}$'
+          description: 等价于 `server.ts:236` 的 UIN_REGEX（与 GET 同一参数，派生守卫覆盖）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OneBotConfig' }
+      responses:
+        '200':
+          description: 保存成功（含热重载崩溃分支，`:1585-1611`；`config` 为请求原文回显）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OneBotConfigSaveResult' }
+        '400': { $ref: '#/components/responses/OneBotConfigSaveRejected' }
+        '401': { $ref: '#/components/responses/AuthGate401' }
+        '403': { $ref: '#/components/responses/AuthGate403' }
+        '500': { $ref: '#/components/responses/OneBotConfigSaveRejected' }
+  /api/processes:
+    get:
+      operationId: listProcesses
+      tags: [onebot]
+      summary: 被 Hook 注入的 QQ 进程列表（dashboard 初始拉取；之后走 state/stream）
+      description: REST 端点只做初始拉取与 30s 对账兜底（`server.ts:1375-1378` 注释）。
+      x-replay-class: t1
+      x-verification-status: static-only
+      x-snowluma-side-effects: []
+      responses:
+        '200':
+          description: '`{list}`（server.ts:1467，`hookManager.listProcesses()`）；无 hookManager 时 `{list:[]}`（:1465）'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [list]
+                properties:
+                  list:
+                    type: array
+                    items: { $ref: '#/components/schemas/HookProcessInfo' }
+        '401': { $ref: '#/components/responses/AuthGate401' }
+        '403': { $ref: '#/components/responses/AuthGate403' }
+        '500': { $ref: '#/components/responses/ProcessesFailed' }
+  /api/qq-list:
+    get:
+      operationId: listQq
+      tags: [onebot]
+      summary: 在线账号的 uin/nickname 列表（dashboard 初始拉取）
+      x-replay-class: t1
+      x-verification-status: static-only
+      x-snowluma-side-effects: []
+      responses:
+        '200':
+          description: '`{list}`（server.ts:1363-1367，`.map` 字面量与 `QQInfo` 逐键相同）；无 4xx/5xx'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [list]
+                properties:
+                  list:
+                    type: array
+                    items: { $ref: '#/components/schemas/QQInfo' }
+        '401': { $ref: '#/components/responses/AuthGate401' }
+        '403': { $ref: '#/components/responses/AuthGate403' }
+  /api/connections:
+    get:
+      operationId: listConnections
+      tags: [onebot]
+      summary: 各账号 OneBot 适配器健康（dashboard 连接卡片的数据源）
+      x-replay-class: t1
+      x-verification-status: static-only
+      x-snowluma-side-effects: []
+      responses:
+        '200':
+          description: '`{list}`（server.ts:1371-1373，`getConnectionStatuses(): AccountConnections[]`，`onebot/src/manager.ts:57`）；无 4xx/5xx'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [list]
+                properties:
+                  list:
+                    type: array
+                    items: { $ref: '#/components/schemas/AccountConnections' }
+        '401': { $ref: '#/components/responses/AuthGate401' }
+        '403': { $ref: '#/components/responses/AuthGate403' }
+  /api/logs:
+    get:
+      operationId: listLogs
+      tags: [logs]
+      summary: 内存中保留的近期日志（dashboard 日志面板的数据源）
+      x-replay-class: t1
+      x-verification-status: static-only
+      x-snowluma-side-effects: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema: { type: string }
+          description: 缺省 300（`Number(c.req.query('limit') ?? 300)`，server.ts:1425）
+      responses:
+        '200':
+          description: '`{list}`（server.ts:1424-1427，`getRecentLogs(limit)`）；无 4xx/5xx'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [list]
+                properties:
+                  list:
+                    type: array
+                    items: { $ref: '#/components/schemas/LogEntry' }
+        '401': { $ref: '#/components/responses/AuthGate401' }
+        '403': { $ref: '#/components/responses/AuthGate403' }
+  /api/logs/level:
+    get:
+      operationId: getLogLevel
+      tags: [logs]
+      summary: 当前控制台日志级别与合法级别表
+      x-replay-class: t1
+      x-verification-status: static-only
+      x-snowluma-side-effects: []
+      responses:
+        '200':
+          description: '`{level, levels}`（server.ts:1445-1447；`levels` 是 `LOG_LEVELS` 的 spread，同源六值）；无 4xx/5xx'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [level, levels]
+                properties:
+                  level: { $ref: '#/components/schemas/LogLevel' }
+                  levels:
+                    type: array
+                    items: { $ref: '#/components/schemas/LogLevel' }
+        '401': { $ref: '#/components/responses/AuthGate401' }
+        '403': { $ref: '#/components/responses/AuthGate403' }
+    post:
+      operationId: setLogLevel
+      tags: [logs]
+      summary: 设置控制台日志级别（即时生效，只影响内存 logger）
+      x-replay-class: t2
+      x-verification-status: static-only
+      x-snowluma-side-effects: [mutate-map]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                level: { type: string, description: '六值之一（`LOG_LEVELS`）；其它值走 400（server.ts:1450-1453，`setLogLevel` 判定在缓存外 `./logger`）' }
+              description: 缺 `level` 即空串判非法（`server.ts:1451` 的 `?? ''` 兜底）
+      responses:
+        '200':
+          description: 已生效的级别 + 合法表（`server.ts:1456`，与 GET 同形）
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [level, levels]
+                properties:
+                  level: { $ref: '#/components/schemas/LogLevel' }
+                  levels:
+                    type: array
+                    items: { $ref: '#/components/schemas/LogLevel' }
+        '400': { $ref: '#/components/responses/InvalidLogLevel' }
+        '401': { $ref: '#/components/responses/AuthGate401' }
+        '403': { $ref: '#/components/responses/AuthGate403' }
+  /api/logs/export/trace:
+    get:
+      operationId: exportTraceLog
+      tags: [logs]
+      summary: 完整 TRACE 导出（纯文本下载，非 JSON）
+      description: |
+        本批唯一的非 JSON 200：`c.body(download.body)` + 逐项设 header（`server.ts:1439-1442`）。
+        元信息（version/os/arch/nodeVersion/logLevel/exportedAt）只进 body 文本头
+        （`log-export.ts:44-60`），不进 schema。`getLogSnapshot()` 返回 `LogEntry[]`
+        （`logger.ts:301`），body 即 `formatFullTraceExport` 拼的行文本。
+      x-replay-class: t1
+      x-verification-status: static-only
+      x-snowluma-side-effects: []
+      responses:
+        '200':
+          description: 文本日志导出（`buildFullTraceDownload`，`log-export.ts:23-37`）；无 4xx/5xx
+          headers:
+            Content-Type: { type: string, description: '恒 `text/plain; charset=utf-8`' }
+            Content-Disposition: { type: string, description: 'attachment 下载，文件名形如 snowluma-trace-<exportedAt前19位，冒号点号转连字符>.log（log-export.ts:27-36）' }
+            Cache-Control: { type: string, description: '恒 `no-store`' }
+          content:
+            text/plain:
+              schema: { type: string }
+        '401': { $ref: '#/components/responses/AuthGate401' }
+        '403': { $ref: '#/components/responses/AuthGate403' }
+  /api/notifications/config:
+    get:
+      operationId: getNotificationsConfig
+      tags: [notifications]
+      summary: 通知渠道配置（防抖秒数与渠道表）
+      x-replay-class: t1
+      x-verification-status: static-only
+      x-snowluma-side-effects: []
+      responses:
+        '200':
+          description: '`{config}`（server.ts:1619，`loadNotificationsConfig()`）；无 4xx/5xx'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [config]
+                properties:
+                  config: { $ref: '#/components/schemas/NotificationsConfig' }
+        '401': { $ref: '#/components/responses/AuthGate401' }
+        '403': { $ref: '#/components/responses/AuthGate403' }
+    post:
+      operationId: saveNotificationsConfig
+      tags: [notifications]
+      summary: 保存通知渠道配置（落盘，512KB 上限）
+      x-replay-class: t2
+      x-verification-status: static-only
+      x-snowluma-side-effects: [persist]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: '目标形状即 `NotificationsConfig`；服务端校验归一化（`saveNotificationsConfig` 取 unknown 入参，`notifications/config.ts:384`），故请求体只约束为对象'
+      responses:
+        '200':
+          description: '`{success:true,config}`（server.ts:1634）'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, config]
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  config: { $ref: '#/components/schemas/NotificationsConfig' }
+        '400': { $ref: '#/components/responses/NotificationsConfigRejected' }
+        '401': { $ref: '#/components/responses/AuthGate401' }
+        '403': { $ref: '#/components/responses/AuthGate403' }
+        '413': { $ref: '#/components/responses/NotificationsConfigRejected' }
+        '500': { $ref: '#/components/responses/NotificationsConfigRejected' }
+  /api/notifications/recent:
+    get:
+      operationId: listRecentNotifications
+      tags: [notifications]
+      summary: 最近投递记录（成功失败都记）
+      x-replay-class: t1
+      x-verification-status: static-only
+      x-snowluma-side-effects: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema: { type: string }
+          description: 缺省 100，上限 100（`Math.min(Math.trunc(limitRaw),100)`，server.ts:1643-1644）
+      responses:
+        '200':
+          description: '`{recent}`（server.ts:1641-1646）；通知子系统未初始化时 `{recent:[]}`，同形'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [recent]
+                properties:
+                  recent:
+                    type: array
+                    items: { $ref: '#/components/schemas/DeliveryRecord' }
+        '401': { $ref: '#/components/responses/AuthGate401' }
+        '403': { $ref: '#/components/responses/AuthGate403' }
+  /api/global-config:
+    get:
+      operationId: getGlobalConfig
+      tags: [config]
+      summary: 全局部署配置（rkey 兜底 + 音乐签名服务）
+      x-replay-class: t1
+      x-verification-status: static-only
+      x-snowluma-side-effects: []
+      responses:
+        '200':
+          description: '`{config}`（server.ts:1672，`loadGlobalSettings()`）；无 4xx/5xx'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [config]
+                properties:
+                  config: { $ref: '#/components/schemas/GlobalSettings' }
+        '401': { $ref: '#/components/responses/AuthGate401' }
+        '403': { $ref: '#/components/responses/AuthGate403' }
+    post:
+      operationId: saveGlobalConfig
+      tags: [config]
+      summary: 保存全局部署配置（落盘 + 热重载全部实例）
+      x-replay-class: t2
+      x-verification-status: static-only
+      x-snowluma-side-effects: [persist]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: '目标形状即 `GlobalSettings`；服务端归一化（`saveGlobalSettings` 取 unknown 入参，`global-config.ts:90`），非法输入走 500 而非请求期拒绝，故请求体只约束为对象'
+      responses:
+        '200':
+          description: '`{success:true,config}`（server.ts:1688，`saveGlobalSettings` 的返回 + `reloadGlobalSettings()` 热重载）'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, config]
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  config: { $ref: '#/components/schemas/GlobalSettings' }
+        '400': { $ref: '#/components/responses/GlobalConfigRejected' }
+        '401': { $ref: '#/components/responses/AuthGate401' }
+        '403': { $ref: '#/components/responses/AuthGate403' }
+        '413': { $ref: '#/components/responses/GlobalConfigRejected' }
+        '500': { $ref: '#/components/responses/GlobalConfigRejected' }
+  /api/ui:
+    get:
+      operationId: getUiConfig
+      tags: [ui]
+      summary: 全量 UI 配置（鉴权后；含 customCss）
+      x-replay-class: t1
+      x-verification-status: static-only
+      x-snowluma-side-effects: []
+      responses:
+        '200':
+          description: '`{config}`（server.ts:1698，`loadUiConfig()`）；无 4xx/5xx'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [config]
+                properties:
+                  config: { $ref: '#/components/schemas/UiConfig' }
+        '401': { $ref: '#/components/responses/AuthGate401' }
+        '403': { $ref: '#/components/responses/AuthGate403' }
+    post:
+      operationId: saveUiConfig
+      tags: [ui]
+      summary: 保存全量 UI 配置（落盘 ui.json）
+      x-replay-class: t2
+      x-verification-status: static-only
+      x-snowluma-side-effects: [persist]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: '目标形状即 `UiConfig`；服务端归一化（`saveUiConfig` 取 unknown 入参，`ui-config.ts:656`；含 customCss 50KB、单挂件 4KB 上限，`server.ts:1703-1704` 注释），故请求体只约束为对象'
+      responses:
+        '200':
+          description: '`{success:true,config}`（server.ts:1717）'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, config]
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  config: { $ref: '#/components/schemas/UiConfig' }
+        '400': { $ref: '#/components/responses/UiConfigRejected' }
+        '401': { $ref: '#/components/responses/AuthGate401' }
+        '403': { $ref: '#/components/responses/AuthGate403' }
+        '413': { $ref: '#/components/responses/UiConfigRejected' }
+  /api/ui/public:
+    get:
+      operationId: getPublicUiAppearance
+      tags: [ui]
+      summary: 外观子集（免认证；customCss 被剥空）
+      description: 中间件对本路径直接放行（`server.ts:631` 的 `next()`），401/403 不可达（N6；写法对照 `/api/login`）；`customCss` 被剥空见 `ui-config.ts:680-682`。
+      security: []
+      x-replay-class: t1
+      x-verification-status: static-only
+      x-snowluma-side-effects: []
+      responses:
+        '200':
+          description: '`{appearance}`（server.ts:1700，`publicAppearance()`）；无 4xx/5xx'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [appearance]
+                properties:
+                  appearance: { $ref: '#/components/schemas/UiAppearance' }
+  /api/debug/actions:
+    get:
+      operationId: listDebugActions
+      tags: [debug]
+      summary: 动作目录与分类计数（按 name 排序）
+      x-replay-class: t1
+      x-verification-status: static-only
+      x-snowluma-side-effects: []
+      responses:
+        '200':
+          description: '`{actions, categories}`（server.ts:1288-1289；`collectActionDocs()` 按 name 排序，`collectCategories()` 给出分类与计数，action-docs.ts:19-30）；无 4xx/5xx'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [actions, categories]
+                properties:
+                  actions:
+                    type: array
+                    items: { $ref: '#/components/schemas/DebugActionDoc' }
+                  categories:
+                    type: array
+                    items:
+                      type: object
+                      required: [category, count]
+                      properties:
+                        category: { type: string }
+                        count: { type: number }
+        '401': { $ref: '#/components/responses/AuthGate401' }
+        '403': { $ref: '#/components/responses/AuthGate403' }
+  /api/logs/stream:
+    get:
+      operationId: streamLogs
+      tags: [streams]
+      summary: 日志 SSE 推送（就绪信号 + 日志条目帧）
+      description: |
+        SSE 长连接（`server.ts:1459-1462`）。消费方式与 `/api/state/stream` 同：
+        fetch + reader（`EventSource` 带不了 `Authorization` 头）。
+        **Go 侧禁用本操作的便捷响应路径**：oapi-codegen 的
+        `*WithResponse` 是 `io.ReadAll(rsp.Body)` + Close，会把长连接缓冲致死；
+        且生成结构里没有 200 字段。流消费必须走裸 `*http.Response` + 手写 scanner
+        （与 `streamState` 同一条理由，`WithResponse` 警告规则覆盖本操作）。
+        401/403 走普通 JSON 响应，只有 200 才是 `text/event-stream`。
+      x-replay-class: t1
+      x-verification-status: static-only
+      responses:
+        '200':
+          description: SSE 帧流（`LogStreamFrame`：就绪信号或 LogEntry）
+          content:
+            text/event-stream:
+              schema: { $ref: '#/components/schemas/LogStreamFrame' }
+        '401': { $ref: '#/components/responses/AuthGate401' }
+        '403': { $ref: '#/components/responses/AuthGate403' }
+  /api/debug/stream:
+    get:
+      operationId: streamDebugEvents
+      tags: [streams]
+      summary: 全账号 OneBot 事件 + action 调用实况 SSE（慢客户端丢帧不背压）
+      description: |
+        SSE 长连接（`server.ts:1347-1361`）：连接时先发 `{kind:ready}`，随后按账号
+        订阅 `subscribeDebugEvents` 与 `observeActions`（`:1356-1359`），tap 只在
+        有客户端时挂载（`:1344-1346` 注释）。慢客户端被丢弃并周期性补发 drop 标记，
+        不向上游背压 —— 消费方收到 `dropped` 帧应改走 REST 重取全量。
+        **Go 侧禁用本操作的 `*WithResponse` 便捷路径**（理由同 `streamLogs`；
+        `WithResponse` 警告规则覆盖本操作）。
+        401/403 走普通 JSON 响应，只有 200 才是 `text/event-stream`。
+      x-replay-class: t1
+      x-verification-status: static-only
+      responses:
+        '200':
+          description: SSE 帧流（`DebugStreamFrame` 四支）
+          content:
+            text/event-stream:
+              schema: { $ref: '#/components/schemas/DebugStreamFrame' }
+        '401': { $ref: '#/components/responses/AuthGate401' }
+        '403': { $ref: '#/components/responses/AuthGate403' }
+  /api/system/storage/settings:
+    post:
+      operationId: updateStorageSettings
+      tags: [system]
+      summary: 更新日志存储设置（串行化互斥 + 环境锁检查 + 事务回滚）
+      x-replay-class: t2
+      x-verification-status: static-only
+      x-snowluma-side-effects: [persist]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: 目标形状即 `LogStorageSettings` 三键；`deps.settings.update(body)`（`storage-settings.ts`）在服务端校验，输入非法走 400（`StorageSettingsInputError`），故请求体只约束为对象
+      responses:
+        '200':
+          description: '`{success:true,settings,status,snapshot}`（storage-routes.ts:135-140；写后即读快照回填）'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, settings, status, snapshot]
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  settings: { $ref: '#/components/schemas/LogStorageSettingsState' }
+                  status: { $ref: '#/components/schemas/PublicLogStorageStatus' }
+                  snapshot: { $ref: '#/components/schemas/StorageSnapshot' }
+        '400': { $ref: '#/components/responses/StorageSettingsFormatError' }
+        '401': { $ref: '#/components/responses/AuthGate401' }
+        '403': { $ref: '#/components/responses/AuthGate403' }
+        '409': { $ref: '#/components/responses/StorageSettingsLockedOut' }
+        '500': { $ref: '#/components/responses/StorageSettingsSaveFailed' }
+  /api/auth/totp/begin:
+    post:
+      operationId: beginTotpEnrollment
+      tags: [auth]
+      summary: 开始 2FA 绑定（发密钥 + otpauth 链接，会话级席位有 TTL）
+      x-replay-class: t3
+      x-verification-status: destructive-static-only
+      x-snowluma-destructive: true
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                issuer: { type: string, description: '缺省 `DEFAULT_TOTP_ISSUER`（server.ts:804 经 `sanitizeTotpLabelPart` 清洗）' }
+                accountName: { type: string, description: '缺省 `defaultTotpAccountName()`（server.ts:805 同上清洗）' }
+              description: 非法 JSON 也不 400——解析失败按 `{}` 处理（server.ts:796-803）；issuer/accountName 只做清洗无校验
+      responses:
+        '200':
+          description: '`{success:true,secret,otpauthUrl,issuer,accountName}`（server.ts:816-822；未过期席位复用 secret，`:807-808`）'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TotpEnrollment' }
+        '400': { $ref: '#/components/responses/TotpBeginRejected' }
+        '401': { $ref: '#/components/responses/AuthGate401' }
+        '403': { $ref: '#/components/responses/AuthGate403' }
+        '409': { $ref: '#/components/responses/TotpBeginRejected' }
+  /api/auth/totp/confirm:
+    post:
+      operationId: confirmTotpEnrollment
+      tags: [auth]
+      summary: 确认 2FA 绑定（验密码 + 验码，成功后踢掉其它会话）
+      x-replay-class: t3
+      x-verification-status: destructive-static-only
+      x-snowluma-destructive: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                password: { type: string, description: '缺省按空串验（server.ts:839），必错' }
+                code: { type: string, description: '缺省按空串验（server.ts:840），必错' }
+              description: 非字符串一律按空串处理（`:839-840`）；判空在验码里完成，不在解析期拒绝
+      responses:
+        '200':
+          description: '`{success:true,recoveryCodes}`（server.ts:861；落盘 + 删席位 + 踢其它会话 `:857-859`）'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TotpRecoveryCodes' }
+        '400': { $ref: '#/components/responses/TotpConfirmRejected' }
+        '401':
+          description: |
+            同一状态码两种来源（changePassword 同例，oneOf 拆开）：**业务** 401 =
+            密码错（`:842`）/ 验证码错（`:864`），`{success:false,message}`；
+            **门控** 401 = token 缺失/过期（中间件 `:634`/`:638`，`AuthGateError`）。
+            本路径不免检（`:631` 只有 login 与 ui/public）⇒ 门控支可达。
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/SuccessFalseEnvelope'
+                  - $ref: '#/components/schemas/AuthGateError'
+        '403': { $ref: '#/components/responses/AuthGate403' }
+        '409': { $ref: '#/components/responses/TotpConfirmRejected' }
+  /api/auth/totp/disable:
+    post:
+      operationId: disableTotp
+      tags: [auth]
+      summary: 关闭 2FA（验密码 + 第二因子，成功后踢掉其它会话）
+      x-replay-class: t3
+      x-verification-status: destructive-static-only
+      x-snowluma-destructive: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                password: { type: string }
+                totp: { type: string, description: '与 recoveryCode 二选一（server.ts:890-891）；都缺则 `decideSecondFactorLogin` 判错' }
+                recoveryCode: { type: string }
+              description: 第二因子走 `decideSecondFactorLogin`（`:886-893`），totp 码或恢复码任一通过
+      responses:
+        '200':
+          description: '`{success:true}`（server.ts:901；清落盘 + 删席位 + 踢其它会话 `:897-899`）'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuccessOnly' }
+        '400': { $ref: '#/components/responses/TotpDisableRejected' }
+        '401':
+          description: |
+            业务 401（密码错 `:884` / 验证码错 `:895`）与门控 401（中间件）形状不同，
+            oneOf 拆开（changePassword 同例）。
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/SuccessFalseEnvelope'
+                  - $ref: '#/components/schemas/AuthGateError'
+        '403': { $ref: '#/components/responses/AuthGate403' }
+  /api/auth/totp/recovery-codes:
+    post:
+      operationId: regenerateTotpRecoveryCodes
+      tags: [auth]
+      summary: 重生成恢复码（验密码 + 当前 TOTP 码，旧码作废）
+      x-replay-class: t3
+      x-verification-status: destructive-static-only
+      x-snowluma-destructive: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                password: { type: string }
+                totp: { type: string, description: '缺省按空串验（server.ts:919），必错' }
+              description: 密码与当前码双过才重生成（`:920-929`）
+      responses:
+        '200':
+          description: '`{success:true,recoveryCodes}`（server.ts:932；落盘新 state `:930`，旧码即废）'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TotpRecoveryCodes' }
+        '400': { $ref: '#/components/responses/TotpRecoveryRejected' }
+        '401':
+          description: |
+            业务 401（密码错 `:921` / 验证码错 `:935`）与门控 401（中间件）形状不同，
+            oneOf 拆开（changePassword 同例）。
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/SuccessFalseEnvelope'
+                  - $ref: '#/components/schemas/AuthGateError'
+        '403': { $ref: '#/components/responses/AuthGate403' }
+  /api/processes/{pid}/probe-login:
+    get:
+      operationId: probeProcessLogin
+      tags: [onebot]
+      summary: 探测某进程的 QQ 登录信息（端口探针，只读）
+      x-replay-class: t3
+      x-verification-status: destructive-static-only
+      x-snowluma-destructive: true
+      parameters:
+        - name: pid
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 4194304
+          description: '`Number(param)` + 整数范围判（`server.ts:1479`，`MAX_PID=4194304`，`:1475`）'
+      responses:
+        '200':
+          description: '`{info}`（server.ts:1504，`probeProcessLoginInfo()`；可为 null——探不到即 null，非错误）'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [info]
+                properties:
+                  info: { $ref: '#/components/schemas/QqPortLoginInfo', nullable: true }
+        '400': { $ref: '#/components/responses/ProbeLoginFailed' }
+        '401': { $ref: '#/components/responses/AuthGate401' }
+        '403': { $ref: '#/components/responses/AuthGate403' }
+        '500': { $ref: '#/components/responses/ProbeLoginFailed' }
+        '503': { $ref: '#/components/responses/ProbeLoginFailed' }
+  /api/processes/{pid}/load:
+    post:
+      operationId: loadProcess
+      tags: [onebot]
+      summary: 加载（注入）指定进程
+      x-replay-class: t3
+      x-verification-status: destructive-static-only
+      x-snowluma-destructive: true
+      parameters:
+        - name: pid
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 4194304
+          description: 同 probe-login（`processAction` 统一判，`server.ts:1479`）
+      responses:
+        '200':
+          description: '`{success,process}`（server.ts:1485，经 `processAction` 的 load 分支，`:1492`）'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProcessActionResult' }
+        '400': { $ref: '#/components/responses/ProcessActionBadPid' }
+        '401': { $ref: '#/components/responses/AuthGate401' }
+        '403': { $ref: '#/components/responses/AuthGate403' }
+        '500': { $ref: '#/components/responses/ProcessActionFailed' }
+        '503': { $ref: '#/components/responses/ProcessActionUnavailable' }
+  /api/processes/{pid}/unload:
+    post:
+      operationId: unloadProcess
+      tags: [onebot]
+      summary: 卸载指定进程的注入
+      x-replay-class: t3
+      x-verification-status: destructive-static-only
+      x-snowluma-destructive: true
+      parameters:
+        - name: pid
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 4194304
+          description: 同 probe-login（`processAction` 统一判，`server.ts:1479`）
+      responses:
+        '200':
+          description: '`{success,process}`（server.ts:1485，经 `processAction` 的 unload 分支，`:1493`）'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProcessActionResult' }
+        '400': { $ref: '#/components/responses/ProcessActionBadPid' }
+        '401': { $ref: '#/components/responses/AuthGate401' }
+        '403': { $ref: '#/components/responses/AuthGate403' }
+        '500': { $ref: '#/components/responses/ProcessActionFailed' }
+        '503': { $ref: '#/components/responses/ProcessActionUnavailable' }
+  /api/processes/{pid}/refresh:
+    post:
+      operationId: refreshProcess
+      tags: [onebot]
+      summary: 刷新指定进程状态
+      x-replay-class: t3
+      x-verification-status: destructive-static-only
+      x-snowluma-destructive: true
+      parameters:
+        - name: pid
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 4194304
+          description: 同 probe-login（`processAction` 统一判，`server.ts:1479`）
+      responses:
+        '200':
+          description: '`{success,process}`（server.ts:1485，经 `processAction` 的 refresh 分支，`:1494`）'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProcessActionResult' }
+        '400': { $ref: '#/components/responses/ProcessActionBadPid' }
+        '401': { $ref: '#/components/responses/AuthGate401' }
+        '403': { $ref: '#/components/responses/AuthGate403' }
+        '500': { $ref: '#/components/responses/ProcessActionFailed' }
+        '503': { $ref: '#/components/responses/ProcessActionUnavailable' }
+  /api/system/tls/cert:
+    post:
+      operationId: uploadTlsCert
+      tags: [system]
+      summary: 上传 TLS 证书与私钥（落盘 config/，0600 写私钥，重启生效）
+      x-replay-class: t3
+      x-verification-status: destructive-static-only
+      x-snowluma-destructive: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cert, key]
+              properties:
+                cert: { type: string, description: 'PEM 字符串（server.ts:1196 类型判）' }
+                key: { type: string, description: 'PEM 字符串；落盘自动补尾换行，0600（server.ts:1203-1210）' }
+              description: 缺键按 undefined 走 `:1196` 的非字符串分支（非 JSON 体才走解析 400）
+      responses:
+        '200':
+          description: '`{success:true,restartRequiredToApply:true}`（server.ts:1215）'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, restartRequiredToApply]
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  restartRequiredToApply: { type: boolean, enum: [true] }
+        '400': { $ref: '#/components/responses/TlsCertRejected' }
+        '401': { $ref: '#/components/responses/AuthGate401' }
+        '403': { $ref: '#/components/responses/AuthGate403' }
+        '500': { $ref: '#/components/responses/TlsCertRejected' }
+    delete:
+      operationId: deleteTlsCert
+      tags: [system]
+      summary: 删除 TLS 证书与私钥（须先关闭 TLS）
+      x-replay-class: t3
+      x-verification-status: destructive-static-only
+      x-snowluma-destructive: true
+      responses:
+        '200':
+          description: '`{success:true}`（server.ts:1229；`rmSync force:true` 双删）'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuccessOnly' }
+        '400': { $ref: '#/components/responses/TlsCertDeleteRejected' }
+        '401': { $ref: '#/components/responses/AuthGate401' }
+        '403': { $ref: '#/components/responses/AuthGate403' }
+        '500': { $ref: '#/components/responses/TlsCertDeleteRejected' }
+  /api/system/backup/export:
+    get:
+      operationId: exportBackup
+      tags: [system]
+      summary: 导出配置备份（JSON 下载，可选含凭据）
+      x-replay-class: t3
+      x-verification-status: destructive-static-only
+      x-snowluma-destructive: true
+      parameters:
+        - name: credentials
+          in: query
+          required: false
+          schema: { type: string, enum: ['0', '1'] }
+          description: 为 `1` 时含凭据（`server.ts:1235` 的 `=== 1` 判据；缺省不含）
+      responses:
+        '200':
+          description: 备份包 JSON 下载（`buildBackup` 产物，`./backup` 模块缓存外，形状不断言；附件头见 headers）
+          headers:
+            Content-Disposition: { type: string, description: '附件下载，文件名形如 snowluma-backup-<ISO 时间冒号点号转连字符>.json（server.ts:1243）' }
+            Cache-Control: { type: string, description: '恒 no-store, max-age=0（备份可带 TLS 私钥与密码哈希，禁缓存，server.ts:1244-1245）' }
+            Pragma: { type: string, description: '恒 no-cache（server.ts:1246）' }
+          content:
+            application/json:
+              schema:
+                type: object
+                description: 备份包（`buildBackup()` 返回，`./backup` 缓存外；N27 不断言键形）
+        '401': { $ref: '#/components/responses/AuthGate401' }
+        '403': { $ref: '#/components/responses/AuthGate403' }
+        '500': { $ref: '#/components/responses/BackupExportFailed' }
+  /api/system/backup/import:
+    post:
+      operationId: importBackup
+      tags: [system]
+      summary: 导入配置备份（32MB 上限，事务恢复）
+      description: |
+        事务失败走 `describeRestoreFailure(err)` 的动态 `{body,status}`（`server.ts:1276-1278`，
+        `RestoreTransactionError` 分支，`./restore` 缓存外）：本操作只建模 200/400/413/500 四档，
+        事务分支的实际码与体由该函数决定，此处不断言（gap：锚定 `./restore` 后可枚举）。
+      x-replay-class: t3
+      x-verification-status: destructive-static-only
+      x-snowluma-destructive: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [backup]
+              properties:
+                backup: { type: object, description: '备份包原文（`restoreBackup(backup,…)`，`./restore` 缓存外，形状不断言）' }
+                restoreCredentials: { type: boolean, description: '为 true 才恢复凭据（server.ts:1272 的 `=== true` 判据）' }
+              description: 非对象体走 400（server.ts:1265-1267）；32MB 限看 content-length（`:1256`）
+      responses:
+        '200':
+          description: '备份恢复结果 `{success:true,...result}`（server.ts:1274；result 形状在缓存外，此处只断言 success）'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success]
+                additionalProperties: true
+                properties:
+                  success: { type: boolean, enum: [true] }
+        '400': { $ref: '#/components/responses/BackupImportRejected' }
+        '401': { $ref: '#/components/responses/AuthGate401' }
+        '403': { $ref: '#/components/responses/AuthGate403' }
+        '413': { $ref: '#/components/responses/BackupImportRejected' }
+        '500': { $ref: '#/components/responses/BackupImportRejected' }
+  /api/system/storage/cleanup:
+    post:
+      operationId: cleanupStorage
+      tags: [system]
+      summary: 清理存储（日志/暂存/分账号/全账号，串行化互斥 + 审计）
+      x-replay-class: t3
+      x-verification-status: destructive-static-only
+      x-snowluma-destructive: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              description: |
+                四分支联合（`storage-routes.ts:22-30` 全证据在文件内；`assertExactKeys` 逐分支验键，
+                `:246`/`:251`/`:260`，多一少一都 400）：
+                logs/temporary 仅 scope 键；account 加 category+uin（uin 经 `isRealUin` 校验，`:253`）；
+                allAccounts 加 category+confirmation（须等于 `ALL_ACCOUNTS_CONFIRMATION` 字面量，`:20`/`:262`）。
+              oneOf:
+                - type: object
+                  required: [scope]
+                  additionalProperties: false
+                  properties:
+                    scope: { type: string, enum: [logs, temporary] }
+                - type: object
+                  required: [scope, category, uin]
+                  additionalProperties: false
+                  properties:
+                    scope: { type: string, enum: [account] }
+                    category: { type: string, enum: [messages, media, reactions] }
+                    uin: { type: string }
+                - type: object
+                  required: [scope, category, confirmation]
+                  additionalProperties: false
+                  properties:
+                    scope: { type: string, enum: [allAccounts] }
+                    category: { type: string, enum: [messages, media, reactions] }
+                    confirmation: { type: string }
+      responses:
+        '200':
+          description: '`{success:true,scope,cleanup,snapshot,lastCleanup}`（storage-routes.ts:229-236；`success` 即 `failures.length===0`，`:228`）'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, scope, cleanup, snapshot, lastCleanup]
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  scope: { type: string }
+                  cleanup: { $ref: '#/components/schemas/StorageCleanupResult' }
+                  snapshot: { $ref: '#/components/schemas/StorageSnapshot' }
+                  lastCleanup: { $ref: '#/components/schemas/LastStorageCleanup' }
+        '400': { $ref: '#/components/responses/StorageCleanupRequestRejected' }
+        '401': { $ref: '#/components/responses/AuthGate401' }
+        '403': { $ref: '#/components/responses/AuthGate403' }
+        '409': { $ref: '#/components/responses/StorageCleanupOnlineRejected' }
+        '500':
+          description: 清理失败（`:183` 纯信封）/ 清理已执行但统计刷新失败（`:219-225` 附 scope/cleanup/lastCleanup 快照），同码双形合并建模（不用 oneOf：快照形是纯信封形的超集，R24 会举出证人；双形差异见本描述）
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, message]
+                properties:
+                  success: { type: boolean, enum: [false] }
+                  message: { type: string }
+                  scope: { type: string }
+                  cleanup: { $ref: '#/components/schemas/StorageCleanupResult' }
+                  lastCleanup: { $ref: '#/components/schemas/LastStorageCleanup' }
+  /api/notifications/test:
+    post:
+      operationId: testNotificationChannel
+      tags: [notifications]
+      summary: 向指定渠道发一条测试通知
+      x-replay-class: t3
+      x-verification-status: destructive-static-only
+      x-snowluma-destructive: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                channelId: { type: string, description: '缺省按空串判缺（server.ts:1656-1657）' }
+              description: 体只取 `channelId` 一键（`:1651`）；非 JSON 体走 400（`:1653`）
+      responses:
+        '200':
+          description: '`{success,status,message}`（server.ts:1660-1666；`success=result.ok`，文案三选一；`status` 无则落键）'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TestSendResult' }
+        '400': { $ref: '#/components/responses/TestSendBadRequest' }
+        '401': { $ref: '#/components/responses/AuthGate401' }
+        '403': { $ref: '#/components/responses/AuthGate403' }
+        '404': { $ref: '#/components/responses/TestSendNoChannel' }
+        '503': { $ref: '#/components/responses/TestSendUnavailable' }

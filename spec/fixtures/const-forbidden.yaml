@@ -1,0 +1,18 @@
+# 派生自 SnowLuma 源码 · 非商业自用 · 不发包管理器
+# 唯一违规是 components.schemas.Branch 里的 const：路径改用 55 条清单内的真实操作，
+# 这样它除 CONST_IN_OPENAPI_3_0 外不再顺带命中 UNCLASSIFIED_OP，可直接当实现批次的金子违规样本
+openapi: 3.0.3
+info: { title: fixture, version: 0.0.0 }
+paths:
+  /api/auth/check-strength:
+    post:
+      operationId: checkStrength
+      x-replay-class: t1
+      x-verification-status: verified
+      responses: { '200': { description: ok } }
+components:
+  schemas:
+    Branch:
+      type: object
+      properties:
+        kind: { type: string, const: ready }

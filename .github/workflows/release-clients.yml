@@ -1,0 +1,115 @@
+# 派生自 SnowLuma 源码 · 非商业自用 · 不发包管理器
+#
+# 产物自动迭代的出口：main 上契约（锚点或 spec）一变就重发三语 SDK 工件。
+# 与 verify.yml 的关系：引导步骤逐字镜像（同一工具链钉版本），区别只在最后——
+# 这里 verify:all 是**发布前置条件**而不是被验对象；工件必须先过闸再出厂。
+# 任何一步红都不产出 Release：宁可没有工件，不可有未过闸的工件。
+name: release-clients
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'spec/anchor.json'
+      - 'spec/openapi.yaml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      # 与 verify.yml 同源的教训：runner 默认 cp1252，中文 stdout 直接崩。
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: adapters/go/go.mod
+          cache: true
+          cache-dependency-path: adapters/go/go.sum
+
+      - name: 安装 oapi-codegen（版本钉 tools.lock.json）
+        run: go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.8.0
+
+      - name: go 工具进 PATH
+        shell: pwsh
+        run: echo "$(go env GOPATH)\bin" >> $env:GITHUB_PATH
+
+      - name: 引导 .venv-gen（openapi-python-client 钉版本）
+        run: |
+          python -m venv .venv-gen
+          .venv-gen\Scripts\python -m pip install "openapi-python-client==0.29.1"
+
+      - run: npm ci
+
+      - name: 恢复 vendor/upstream 缓存（按锚点 SHA 重拉）
+        run: npm run fetch:upstream
+
+      - name: 三语生成
+        run: npm run generate
+
+      - name: verify:all —— 发布前置闸
+        run: npm run verify:all
+
+      - name: 打包工件
+        id: pack
+        shell: pwsh
+        run: |
+          $anchor = (Get-Content spec/anchor.json | ConvertFrom-Json).commit
+          # 锚点形状检查不信任上游一步的产物：坏 SHA 会造出读不出短前缀的 tag。
+          if ($anchor -notmatch '^[0-9a-f]{40}$') { throw "anchor.commit 形状非法：$anchor" }
+          # pwsh 字符串展开的坑：`$(Get-Date).ToUniversalTime().ToString(…)` 里只有
+          # `$(Get-Date)` 是子表达式，方法调用会留成字面文本——首跑 tag 因此带斜杠，
+          # tar 打不开、Release 停在闸口（fail-closed 行为正确，无半成品出厂）。
+          $tag = "clients-$($anchor.Substring(0,7))-$((Get-Date).ToUniversalTime().ToString('yyyyMMddHHmmss'))"
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+          New-Item -ItemType Directory dist | Out-Null
+          tar -czf "dist/snowluma-clients-typescript-$tag.tar.gz" -C generated typescript
+          tar -czf "dist/snowluma-clients-python-$tag.tar.gz" -C generated python
+          tar -czf "dist/snowluma-clients-go-$tag.tar.gz" -C generated go
+          Copy-Item spec/openapi.yaml dist/
+          Copy-Item spec/anchor.json dist/
+          Copy-Item spec/NOTICE.md dist/
+          # 血统收据随附：generated/ 不入库，追凶"这批出自哪份 spec/哪三个 pin"全靠它。
+          # 上传名刻意去掉点号：dotfile 会被 gh 改名成 default.provenance.json（验收实测）。
+          Copy-Item generated/.provenance.json dist/provenance.json
+          (Get-ChildItem dist -File | ForEach-Object {
+            (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower() + "  " + $_.Name
+          }) | Set-Content dist/SHA256SUMS.txt -Encoding ascii
+
+      - name: Release 正文
+        shell: pwsh
+        run: |
+          $anchor = (Get-Content spec/anchor.json | ConvertFrom-Json).commit
+          @"
+          自动发布：main 上契约变更（锚点或 spec）。
+
+          - 上游锚点：https://github.com/SnowLuma/SnowLuma/commit/$anchor
+          - 工件：三语 SDK 源码 tarball + spec/anchor/NOTICE + SHA256SUMS.txt + 血统收据 .provenance.json
+          - 本 Release 的每个工件出自同一次**先过了 verify:all 9/9** 的构建（见工作流日志）。
+
+          许可口径见 NOTICE.md：非商业自用，不发布到包管理器（npm/PyPI/Go module）；
+          本仓 Release 工件属自用分发。
+          "@ | Set-Content body.md -Encoding utf8
+
+      - name: 创建 Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $files = Get-ChildItem dist -File | ForEach-Object { $_.FullName }
+          gh release create "${{ steps.pack.outputs.tag }}" --title "SnowLuma clients ${{ steps.pack.outputs.tag }}" --notes-file body.md -- $files

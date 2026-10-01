@@ -1,0 +1,514 @@
+/* 派生自 SnowLuma 源码 · 非商业自用 · 不发包管理器 */
+/**
+ * 轻量客户端样式表。为什么存在：客户端 markup 从第一天起就在写 `class="err"`、`tiles`、`kv`
+ * 这一批类名，而仓里从来没有定义过它们 —— 一屏没有样式的 DOM 不是"朴素"，是那些类名在骗读代码的人
+ * 说样式已就绪。这里只定义 markup 真用到的类，不预留将来才用的。
+ *
+ * 为什么不读实例的 appearance：`/api/status` 之外还有一条 `/appearance`，但总览只把它**显示**出来
+ * （见 declination `public-appearance-render`）——拿别人的强调色来画自己的界面，等于把 demo 的外观
+ * 交给一个还没确认过的对端，所以这里的色板全部本地定义。
+ */
+
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --ink: #1b1f24;
+  --ink-soft: #5b6570;
+  --line: #d7dce2;
+  --accent: #1f6feb;
+  --ok: #1a7f37;
+  --ok-soft: #e6f2ea;
+  --warn: #8a6100;
+  --warn-soft: #fbf1dc;
+  --danger: #b3261e;
+  --danger-soft: #fbeceb;
+  --radius: 8px;
+  --gap: 16px;
+  --mono: ui-monospace, SFMono-Regular, "Cascadia Mono", Consolas, "Liberation Mono", monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14181d;
+    --surface: #1b2026;
+    --ink: #e6e9ed;
+    --ink-soft: #9aa4af;
+    --line: #2c333b;
+    --accent: #6cb0ff;
+    --ok: #4ec77a;
+    --ok-soft: #16281c;
+    --warn: #d9a441;
+    --warn-soft: #2a2313;
+    --danger: #ff7b72;
+    --danger-soft: #2b1a1b;
+  }
+}
+
+/* 外壳用 #main/#gate 的 hidden 属性切屏。后面给它们设了 display 就会盖掉 [hidden]，
+ * 表现为"门禁还没过，主界面已经露出来"——正是设计口径明令禁止的那一屏。 */
+[hidden] {
+  display: none !important;
+}
+
+body {
+  margin: 0;
+  padding: 24px;
+  background: var(--bg);
+  color: var(--ink);
+  font: 15px/1.55 system-ui, "Segoe UI", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+}
+
+#root {
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+h1 {
+  font-size: 20px;
+  margin: 0 0 12px;
+}
+
+h3 {
+  font-size: 14px;
+  text-transform: none;
+  margin: 0 0 10px;
+  color: var(--ink-soft);
+}
+
+#target,
+#appearance {
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin-bottom: 10px;
+}
+
+/* 目标行里的表单是能填能点的控件，不该继承上面那层"说明文字"的弱化色。 */
+#target form {
+  color: var(--ink);
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+}
+
+#appearance summary {
+  cursor: pointer;
+}
+
+code {
+  font-family: var(--mono);
+  font-size: 0.92em;
+  background: color-mix(in srgb, var(--line) 45%, transparent);
+  padding: 1px 4px;
+  border-radius: 4px;
+}
+
+/* ── 门禁屏 ─────────────────────────────── */
+#gate {
+  max-width: 560px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 20px;
+}
+
+#gateTitle {
+  margin-top: 0;
+  font-size: 17px;
+}
+
+#loginForm,
+#passwordForm {
+  display: grid;
+  gap: 12px;
+}
+
+/* 一行一个控件 + 它的标签；强度规则那一块也用它。 */
+.row {
+  display: grid;
+  gap: 4px;
+}
+
+.row > label {
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+input,
+select,
+textarea,
+button {
+  font: inherit;
+  color: inherit;
+}
+
+input,
+select,
+textarea {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 7px 9px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+button {
+  cursor: pointer;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 7px 14px;
+}
+
+button:hover:not([disabled]) {
+  border-color: var(--accent);
+}
+
+button:active:not([disabled]) {
+  transform: translateY(1px);
+}
+
+button[disabled] {
+  cursor: not-allowed;
+  color: var(--ink-soft);
+  background: color-mix(in srgb, var(--line) 35%, var(--surface));
+}
+
+#strengthRules {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.agree {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.agree input {
+  width: auto;
+  margin-top: 3px;
+}
+
+/* ── 主界面外壳 ─────────────────────────── */
+#sessionBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  font-size: 13px;
+}
+
+#tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 14px 0 0;
+  border-bottom: 1px solid var(--line);
+}
+
+#tabs a {
+  padding: 7px 14px;
+  font-size: 14px;
+  color: var(--ink-soft);
+  text-decoration: none;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+}
+
+#tabs a:hover {
+  color: var(--ink);
+}
+
+#tabs a.active {
+  color: var(--ink);
+  background: var(--surface);
+  border-color: var(--line);
+  /* 与 #panel 连成一块：压掉那条分隔线，标签页才像是"打开着" */
+  position: relative;
+  top: 1px;
+}
+
+#panel {
+  display: grid;
+  gap: var(--gap);
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 0 var(--radius) var(--radius) var(--radius);
+  padding: var(--gap);
+}
+
+#panelPending {
+  grid-column: 1 / -1;
+}
+
+/* 每个面板区块自带 data-ctl（与 ui-coverage 门禁同一套钩子）。 */
+#panel section[data-ctl] {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px;
+  background: var(--surface);
+}
+
+/* ── 数据块 ─────────────────────────────── */
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+}
+
+.tile {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 10px;
+  display: grid;
+  gap: 2px;
+}
+
+.tileLabel {
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.tileValue {
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+}
+
+dl.kv {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 12px;
+  margin: 0;
+  font-size: 14px;
+}
+
+dl.kv dt {
+  color: var(--ink-soft);
+}
+
+dl.kv dd {
+  margin: 0;
+  word-break: break-word;
+}
+
+table.grid {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+table.grid th,
+table.grid td {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+table.grid th {
+  color: var(--ink-soft);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+table.grid tbody tr:hover {
+  background: color-mix(in srgb, var(--line) 22%, transparent);
+}
+
+.outcome {
+  font-family: var(--mono);
+  font-size: 13px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.field,
+.fld {
+  display: grid;
+  gap: 3px;
+  margin: 8px 0;
+  font-size: 13px;
+}
+
+.netItem,
+.channelItem {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 10px;
+  display: grid;
+  gap: 6px;
+}
+
+.account td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+section.doc {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 12px;
+  max-height: 320px;
+  overflow: auto;
+}
+
+pre.body {
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+}
+
+/* ── 语气：状态、标签、辅助文本 ──────────── */
+.ok {
+  color: var(--ok);
+}
+
+.err {
+  color: var(--danger);
+}
+
+.warn {
+  color: var(--warn);
+}
+
+p.ok,
+p.err,
+p.warn,
+div.err,
+div.ok,
+ul.err {
+  border-left: 3px solid currentColor;
+  border-radius: 0 6px 6px 0;
+  padding: 8px 10px;
+  background: var(--danger-soft);
+  margin: 8px 0;
+}
+
+p.ok,
+div.ok {
+  background: var(--ok-soft);
+}
+
+p.warn {
+  background: var(--warn-soft);
+}
+
+/* 设置页给每个字段常驻一个 `.err`/`.ok` 空槽，出错时才填文案（`pages/settings.ts:89-90`）。
+ * 上面那套红边底色会让 18 个空槽变成 18 条没有字的红条 —— 真浏览器走查抓到的就是这个。
+ * 空槽不占位才是它本来的语义。 */
+.err:empty,
+.ok:empty,
+.warn:empty,
+.hint:empty {
+  display: none;
+}
+
+.tag {
+  display: inline-block;
+  font-size: 12px;
+  line-height: 1.6;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--ink-soft);
+}
+
+.tag.ok {
+  color: var(--ok);
+  border-color: color-mix(in srgb, var(--ok) 45%, transparent);
+  background: var(--ok-soft);
+}
+
+.tag.warn {
+  color: var(--warn);
+  border-color: color-mix(in srgb, var(--warn) 45%, transparent);
+  background: var(--warn-soft);
+}
+
+/* 强度规则清单里"还没满足"的那一项：门禁屏用 `class="ok|no"` 成对出现（`pages/gate.ts:185`），
+ * 只定义 ok 会让未满足的规则看起来和满足了一样。 */
+.no {
+  color: var(--ink-soft);
+}
+
+li.no::marker,
+li.ok::marker {
+  color: currentColor;
+}
+
+/* 日志级别格子：类名由上游的 level 值拼出来（`pages/logs.ts:105` 的 `lv-<小写级别>`），
+ * 枚举见 spec 的 LogLevel。先给一条兜底，再逐个上色 —— 上游哪天加一档，兜底保证它仍像个级别，
+ * 而不是掉回默认字色里冒充普通文本。 */
+[class^="lv-"] {
+  font-family: var(--mono);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.lv-trace,
+.lv-debug {
+  color: var(--ink-soft);
+}
+
+.lv-info {
+  color: var(--accent);
+}
+
+.lv-success {
+  color: var(--ok);
+}
+
+.lv-warn {
+  color: var(--warn);
+}
+
+.lv-error {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.hint,
+.meta,
+.muted {
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+/* 表格里的空值也用同一套语气，别让它看起来像"有值但看不见" */
+td.muted,
+td.err {
+  font-family: inherit;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+
+  button:active:not([disabled]) {
+    transform: none;
+  }
+}

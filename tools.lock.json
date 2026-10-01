@@ -1,0 +1,73 @@
+{
+  "lockVersion": 1,
+  "banner": "派生自 SnowLuma 源码 · 非商业自用 · 不发包管理器",
+  "generators": {
+    "hey-api-openapi-ts": "0.99.0",
+    "openapi-python-client": "0.29.1",
+    "oapi-codegen": "v2.8.0"
+  },
+  "runtimes": {
+    "node": "v22.23.1",
+    "python": "3.14.6",
+    "go": "go1.27.1"
+  },
+  "generationConstraints": {
+    "note": "spike 预研实测得出的**生成期**约束。它们不是运行时依赖，不进 package.json，也不得与仓库自身的 devDependencies 混用。",
+    "hey-api-openapi-ts": {
+      "peerTypeScript": "5.9.3",
+      "reason": "hey-api 0.99.0 的 peer 是 `>=5.5.3 || >=6.0.0 || 6.0.1-rc`。裸 `npx @hey-api/openapi-ts` 会自动补装**最新** typescript（实测 7.0.2，Go 原生移植版），其包出口只映射到子路径，import 期即崩 `Cannot read properties of undefined (reading 'SyntaxKind')`。仓库自身 devDependencies 也正是 typescript 7.0.2，所以**绝不能**用本仓库的 typescript 去跑 hey-api。",
+      "invocation": "npx -y -p '@hey-api/openapi-ts@0.99.0' -p 'typescript@5.9.3' openapi-ts -i <spec> -o <out>",
+      "headerMechanism": "config 文件里的 output.header（CLI 无对应参数，须 -f cfg.ts）；它是**替换**默认头而非追加"
+    },
+    "openapi-python-client": {
+      "venv": "spike/out/.venv（spike 预研用；客户端批次须自建并入库说明）",
+      "pathRequirement": "必须把 venv 的 Scripts 目录放进 PATH，否则 ruff 格式化与 post_hooks 全部跳过（每文件 'Skipping Integration'）。",
+      "headerMechanism": "无头部专用配置项；用通用 post_hooks，且 hook 以输出目录为 cwd、不接收文件名、命令首 token 须不带引号且在 PATH 上"
+    },
+    "oapi-codegen": {
+      "headerMechanism": "v2.8.0 无 --include/--header，config 也无 header 字段；可用机制是 config 的 output-options.user-templates（映射模板名 → 单行文件路径；顶层写 user-templates 会报 field not found）覆盖 imports.tmpl 首行 ⇒ 需把一份上游模板副本入库并与本 pin 绑定。CLI 的 -templates <dir> 已废弃且把目录内每个文件都当模板覆盖，本分支不用（终审 W3 更正；run.test.ts 钉住本句与 tools/gen/oapi-codegen.yaml 的键名一致）",
+      "enumPrefix": "Go 生成配置需 compatibility.always-prefix-enum-values: true，否则布尔 enum 会产出不带前缀的包级常量 False/True"
+    },
+    "commonRule": "三家重新生成都会覆盖手工插入的头部：许可声明只能走生成器自身机制，不得以生成后插入为唯一路径。"
+  },
+  "platform": "windows-x64",
+  "provenance": {
+    "note": "版本号一律存原样字符串（设计口径）：三家生成器互相不同形，oapi-codegen 保留 v 前缀，不做归一化，以免丢失与上游发布物的对应关系。",
+    "hey-api-openapi-ts": "npm view @hey-api/openapi-ts version → 0.99.0",
+    "openapi-python-client": "python -m pip index versions openapi-python-client → 0.29.1（PyPI）。注意：该工具发布于 PyPI 而非 npm，初版计划的工具链核对步骤里的 `npm view openapi-python-client version` 实测报 E404，版本改从 PyPI 实查取得。",
+    "oapi-codegen": "gh api repos/oapi-codegen/oapi-codegen/releases/latest --jq .tag_name → v2.8.0",
+    "runtimes": "node -v → v22.23.1；python --version → 3.14.6；go version → go1.27.1 windows/amd64（本机安装，见 goInstall）"
+  },
+  "goInstall": {
+    "status": "INSTALLED-ZIP-SESSION-PATH",
+    "method": "官方 zip（go1.27.1.windows-amd64.zip，78931360 字节，sha256 a3911b5e0e1b1053f25ed0675f4c1c6aad1e2bfcf253df2b9be4caabd2edd95d 已由 go.dev/dl 的 JSON 校验通过）解压到 C:\\go，未运行任何安装器。",
+    "notPersisted": "按用户裁定**不写系统 PATH、不动注册表**。每个新终端/子进程须自行前置：export PATH=\"/c/go/bin:$PATH\"（或等价地调用绝对路径 C:\\go\\bin\\go.exe）。",
+    "toolchainPin": "GOTOOLCHAIN 当前为 auto：若某 go.mod 要求更高版本，Go 会自行下载工具链，破坏可复现性。本项目的 Go 侧命令应显式带 GOTOOLCHAIN=local。",
+    "env": {
+      "GOROOT": "C:\\go",
+      "GOPATH": "C:\\Users\\Administrator\\go",
+      "GOCACHE": "C:\\Users\\Administrator\\AppData\\Local\\go-build"
+    }
+  },
+  "prerequisites": {
+    "summary": "vendor/upstream/ 被 .gitignore 排除。全仓库只有下面列出的那一条测试真实读取该缓存；冷克隆或离线环境下它必然失败。运行测试前先在仓库根目录执行 fetchCommand 恢复缓存。",
+    "testsReadingVendorCache": [
+      "tools/build-anchor.test.ts › describe「buildAnchorFromDir」› it「本地缓存（拉取，不重新联网）产出设计口径的基线数」（按用例名定位，行号会漂移）"
+    ],
+    "tripwire": "该用例断言 59（路由注册数）/ 55（API 操作数）/ 76（packages/webui/src/types.ts 模型数）/ 19（packages/webui/src/lib/api/types.ts 模型数）。禁止为让离线环境变绿而放宽断言或加 skip——那会废掉这条绊线。",
+    "failureTriage": "该用例断言的是「本地缓存仍是 anchor 记录的 commit 那份」（buildAnchorFromDir 不重新联网），不是「上游 main 仍长这样」。变红时先跑 fetchCommand 重拉；重拉后仍红才是基线漂移，按漂移流程处理，不要归咎缓存缺失。",
+    "fetchCommand": "npm run fetch:upstream",
+    "fetchCommandNotes": [
+      "脚本本体是 tools/fetch-upstream.ts：读 spec/anchor.json 的 commit，先过 COMMIT_SHA 形状检查（坏锚点不当 ref 用），再带 12 次批级重试重拉；ipv4first 在脚本内 setDefaultResultOrder，不再要求包 NODE_OPTIONS。",
+      "commit 一律取 spec/anchor.json 里记录的 40 位 commit，不重新解析分支名。",
+      "若 check-drift 报出 commit 非 40 位小写十六进制（终审 I2 读侧执法），fetch:upstream 会直接拒绝并按 ANCHOR_COMMIT_REMEDIATION 给出人工流程。",
+      "重试上界 12 的来历（客户端批次实测）：fetchUpstream 对每个文件各发一次 fetch 且没有逐文件重试，任一条连接被重置就整批失败重来。",
+      "重拉之后的重建步骤是 npm run extract <同一个 40 位 SHA>（即 tools/build-anchor.ts，从不联网，只把缓存字节重新哈希）。"
+    ],
+    "untouchedTests": "实现批次的测试用临时目录，tools/lib/tiers.test.ts 的 55 来自仓库内硬编码清单，均不碰 vendor/——不要为了让它们「也能跑」而改成读缓存，那会把纯数据测试耦合到网络与磁盘状态。",
+    "fixtureWarnings": [
+      "不得把 spec/fixtures/ 整体 glob 进 tools/validate-spec.ts：spec/fixtures/drift-ok.yaml 按设计就不是合法 spec（其文件头自述缺 security 与 uin 参数声明，注意它**带有** x-replay-class / x-verification-status，校验器对它的报错来自前者而非后者），glob 会把它当 spec 校验而误报。",
+      "spec/fixtures/minimal-valid.yaml 与 const-forbidden.yaml 的 operationId 是 fixture 自编的演示值，不是上游事实；客户端批次消费这些 fixture 时不得把它们当数据源引用。"
+    ]
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "name": "snowluma-webui-api-extraction",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "extract": "tsx tools/build-anchor.ts",
+    "inventory": "tsx tools/inventory.ts",
+    "validate": "tsx tools/validate-spec.ts spec/openapi.yaml",
+    "drift": "tsx tools/check-drift.ts",
+    "upstream:sync": "tsx tools/upstream-sync.ts",
+    "ui-coverage": "tsx tools/check-ui-coverage.ts",
+    "probe": "tsc --noEmit -p tsconfig.probe.json && tsc --noEmit -p tsconfig.gen-ts.json && tsc --noEmit -p tsconfig.demo.json && python tools/gen/probe.py",
+    "typecheck:demo": "tsc --noEmit -p tsconfig.demo.json",
+    "probe:py-import": ".venv-gen\\Scripts\\python.exe tools/gen/probe-import.py",
+    "test:py-adapter": "python adapters/python/test_snowluma_adapter.py && python adapters/python/test_golden.py",
+    "test:go-adapter": "tsx tools/run-go-test.ts",
+    "integrity": "tsx tools/integrity-check.ts",
+    "fetch:upstream": "tsx tools/fetch-upstream.ts",
+    "generate": "tsx tools/gen/run.ts",
+    "gen:demo": "tsx tools/gen/run.ts demo",
+    "gen:check": "tsx tools/gen/run.ts demo && git diff --exit-code HEAD -- \":(glob)demo/**.gen.ts\"",
+    "verify:all": "tsx tools/verify-all.ts",
+    "demo": "tsx demo/dashboard.ts",
+    "fixture:up": "tsx tools/fixture.ts",
+    "fixture:down": "tsx tools/fixture.ts --down",
+    "test:fixture": "tsx tools/run-fixture.ts",
+    "e2e:smoke": "tsx tools/e2e-smoke.ts"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.3",
+    "esbuild": "0.28.2",
+    "happy-dom": "^20.14.5",
+    "playwright-core": "1.56.1",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2",
+    "vitest": "5.0.2",
+    "yaml": "2.9.1"
+  }
+}

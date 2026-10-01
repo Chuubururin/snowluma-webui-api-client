@@ -1,0 +1,37 @@
+# 派生自 SnowLuma 源码 · 非商业自用 · 不发包管理器
+# 这份 fixture 故意是错的：它的 400 union 复刻原稿的 PasswordTooWeak / PasswordFailure
+# 那一对 —— 服务端 `server.ts:755-758` 的带 rules 响应会同时命中两支。
+# 任何一条让 ONEOF_BRANCH_OVERLAP 不再报红的改动（删规则、把 additionalProperties 去掉、
+# 把 union 换成两支都开放）都会让 tools/validate-spec.test.ts 里点名这条 code 的用例转红。
+openapi: 3.0.3
+info: { title: overlap pin, version: 0.0.0-slice }
+paths:
+  /api/x:
+    post:
+      operationId: doX
+      x-replay-class: t1
+      x-verification-status: static-only
+      responses:
+        '200':
+          description: 两支都开放
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/Weak'
+                  - $ref: '#/components/schemas/Plain'
+components:
+  schemas:
+    Weak:
+      type: object
+      required: [success, message, rules]
+      properties:
+        success: { type: boolean, enum: [false] }
+        message: { type: string }
+        rules: { type: array, items: { type: object } }
+    Plain:
+      type: object
+      required: [success, message]
+      properties:
+        success: { type: boolean, enum: [false] }
+        message: { type: string }

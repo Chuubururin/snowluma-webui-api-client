@@ -1,0 +1,382 @@
+[
+  {
+    "file": "packages/webui/src/lib/api/types.ts",
+    "name": "AgreementDoc"
+  },
+  {
+    "file": "packages/webui/src/lib/api/types.ts",
+    "name": "AgreementsPayload"
+  },
+  {
+    "file": "packages/webui/src/lib/api/types.ts",
+    "name": "ApiClient"
+  },
+  {
+    "file": "packages/webui/src/lib/api/types.ts",
+    "name": "ChangePasswordResult"
+  },
+  {
+    "file": "packages/webui/src/lib/api/types.ts",
+    "name": "ConfigApplyError"
+  },
+  {
+    "file": "packages/webui/src/lib/api/types.ts",
+    "name": "ConfigSaveResult"
+  },
+  {
+    "file": "packages/webui/src/lib/api/types.ts",
+    "name": "CreateApiClientOptions"
+  },
+  {
+    "file": "packages/webui/src/lib/api/types.ts",
+    "name": "LoginResult"
+  },
+  {
+    "file": "packages/webui/src/lib/api/types.ts",
+    "name": "LogsStreamOptions"
+  },
+  {
+    "file": "packages/webui/src/lib/api/types.ts",
+    "name": "ProcessActionResult"
+  },
+  {
+    "file": "packages/webui/src/lib/api/types.ts",
+    "name": "RecordConsentResult"
+  },
+  {
+    "file": "packages/webui/src/lib/api/types.ts",
+    "name": "StateStreamEvent"
+  },
+  {
+    "file": "packages/webui/src/lib/api/types.ts",
+    "name": "StateStreamOptions"
+  },
+  {
+    "file": "packages/webui/src/lib/api/types.ts",
+    "name": "StreamStatus"
+  },
+  {
+    "file": "packages/webui/src/lib/api/types.ts",
+    "name": "TokenStore"
+  },
+  {
+    "file": "packages/webui/src/lib/api/types.ts",
+    "name": "TotpBeginResult"
+  },
+  {
+    "file": "packages/webui/src/lib/api/types.ts",
+    "name": "TotpConfirmResult"
+  },
+  {
+    "file": "packages/webui/src/lib/api/types.ts",
+    "name": "TotpEnrollment"
+  },
+  {
+    "file": "packages/webui/src/lib/api/types.ts",
+    "name": "TotpStatus"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "AccentMode"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "AccentScope"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "AccountConnections"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "AccountDatabaseMigration"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "AccountStorageCategory"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "AccountStorageSnapshot"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "AdapterStatus"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "AdapterStatusLevel"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "BackgroundType"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "BackupBundle"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "BackupImportResult"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "DarkIntensity"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "DebugActionDoc"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "DebugActionParam"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "DebugInvokeResult"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "DebugStreamFrame"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "DebugStreamMessage"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "DebugUploadResult"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "Density"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "FieldRole"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "GlobalSettings"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "HistorySyncConfig"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "HookProcessInfo"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "HttpClientNetwork"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "HttpServerNetwork"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "LastStorageCleanup"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "LogEntry"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "LogLevel"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "LogStorageSettings"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "LogStorageSettingsField"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "LogStorageSettingsPatch"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "LogStorageSettingsState"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "LogStorageState"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "LogStorageStatus"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "LogsPreset"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "MessageFormat"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "NetworkKind"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "NotificationChannel"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "NotificationChannelType"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "NotificationDeliveryRecord"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "NotificationEventKind"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "NotificationsConfig"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "OneBotConfig"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "OneBotNetworks"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "Palette"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "QQInfo"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "RKeyConfig"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "SidebarStyle"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "StatusCommandConfig"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "StorageCleanupFailure"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "StorageCleanupRequest"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "StorageCleanupResponse"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "StorageCleanupResult"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "StorageCleanupScope"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "StorageOverviewResponse"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "StorageSettingsUpdateResponse"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "StorageSnapshot"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "SystemInfo"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "SystemSettings"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "SystemSettingsPatch"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "SystemSettingsResponse"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "TemporaryStorageSnapshot"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "ThemeMode"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "TimeFormat"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "UiAppearance"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "UiBackground"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "UiConfig"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "UiHighlightRule"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "UiLayout"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "UiLayoutItem"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "UiLogsPrefs"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "UiPages"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "UpdateInfo"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "WsClientNetwork"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "WsRole"
+  },
+  {
+    "file": "packages/webui/src/types.ts",
+    "name": "WsServerNetwork"
+  }
+]

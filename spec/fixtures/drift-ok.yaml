@@ -1,0 +1,16 @@
+# 派生自 SnowLuma 源码 · 非商业自用 · 不发包管理器
+# 合规范本：paths 逐条对应上游真实操作（GET /api/logs、/api/status、/api/config/:uin）。
+# 裁定 R19：路径参数在 spec 侧只能写 OpenAPI 的 {uin}，而上游源码/tiers.ts 的键是 :uin；
+# 本 fixture 刻意保留这个形式差异，供 tools/check-drift.test.ts 钉住"归一化后零漂移"。
+# 注意 operationId 是 fixture 自编的演示值，不是上游事实，不得当数据源引用。
+# 本文件的合约只有"漂移比对为零"：它刻意不带 security / uin parameter 声明，
+# 因此对 spec 校验器（tools/validate-spec.ts）并不干净——那份金样本是 minimal-valid.yaml。
+openapi: 3.0.3
+info: { title: fixture, version: 0.0.0 }
+paths:
+  /api/logs:
+    get: { operationId: listLogs, 'x-replay-class': t1, 'x-verification-status': verified, responses: { '200': { description: ok } } }
+  /api/status:
+    get: { operationId: getStatus, 'x-replay-class': t1, 'x-verification-status': verified, responses: { '200': { description: ok } } }
+  /api/config/{uin}:
+    get: { operationId: getConfig, 'x-replay-class': t1, 'x-verification-status': unverified-requires-qq, responses: { '200': { description: ok } } }

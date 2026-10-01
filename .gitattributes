@@ -1,0 +1,15 @@
+# 由工具重写的派生文本必须钉在 LF：`core.autocrlf=true` 会让检出得到 CRLF，
+# 而 `writeFile` 写回 LF —— 于是每跑一次 `npm run inventory` / `npm run extract`，
+# `git status` 就报一个内容零变化的"M"。那些产物正是漂移检查要人盯的，
+# 假的脏信号会把"变红"训练成噪音。
+extracted/*.json text eol=lf
+spec/*.json text eol=lf
+spec/*.yaml text eol=lf
+tools.lock.json text eol=lf
+tools/gen/templates/*.tmpl text eol=lf
+
+# demo 生成面同理，而且更致命：`gen:check` 用"跑一遍生成器后 git 是否仍干净"当判据。
+# 这 14 份没钉 eol，checkout 得 CRLF、writeFile 写回 LF，于是每跑一次 gen:demo 就凭空多出
+# 一整批 `M`（实测内容差异 0 行、status 仍报脏）—— 一条本该抓"生成物与 spec 不一致"的门禁
+# 会永远红着，而红太久就等于没有门禁。
+demo/**/*.gen.ts text eol=lf

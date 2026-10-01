@@ -1,0 +1,12 @@
+{
+  "schemaVersion": "1.0.0",
+  "rules": [
+    {
+      "id": "config-double-shape",
+      "match": { "path": "/api/config/{uin}", "method": "GET" },
+      "op": "unwrap",
+      "when": { "hasKey": "config" },
+      "unwrapKey": "config"
+    }
+  ]
+}

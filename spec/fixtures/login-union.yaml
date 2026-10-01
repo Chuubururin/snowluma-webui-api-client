@@ -1,0 +1,46 @@
+# 派生自 SnowLuma 源码 · 非商业自用 · 不发包管理器
+# 回归 fixture：把 R22 的 `oneOf` 布尔 union 形状钉在校验器上——
+# 证明"oneOf + 各分支用 enum: [单值] 钉住布尔 tag"在 OpenAPI 3.0.3 下 0 error，
+# 且校验器不因缺 discriminator 报错（全仓禁写 discriminator，裁定 R22）。
+# 注：brief 原稿的 `paths: {}` 会命中 MISSING_PATHS（validate-spec.ts 要求至少一条路径），
+# 与"0 error"的期望自相矛盾；这里补一条 tiers.ts 清单内的最小合法路径消音，union 形状本身不因此改变。
+openapi: 3.0.3
+info: { title: fixture, version: 0.0.0 }
+security:
+  - bearer: []
+paths:
+  /api/logs:
+    get:
+      operationId: listLogs
+      x-replay-class: t1
+      x-verification-status: unverified-requires-qq
+      responses:
+        '200':
+          description: ok
+          # 真引用 LoginResult：终审 W1 的孤儿规则（UNREFERENCED_SCHEMA）之后，
+          # "定义在 components.schemas 却全档零 $ref"本身就是 error——本 fixture 钉的
+          # R22 退路形状本来就该以可发布响应形状的身份过关，而不是靠规则豁免。
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoginResult' }
+components:
+  securitySchemes:
+    bearer: { type: http, scheme: bearer }
+  schemas:
+    LoginSuccess:
+      type: object
+      required: [success, token, mustChangePassword]
+      properties:
+        success: { type: boolean, enum: [true] }
+        token: { type: string }
+        mustChangePassword: { type: boolean }
+    LoginNeedsTotp:
+      type: object
+      required: [success, needsTotp]
+      properties:
+        success: { type: boolean, enum: [false] }
+        needsTotp: { type: boolean, enum: [true] }
+    LoginResult:
+      oneOf:
+        - $ref: '#/components/schemas/LoginSuccess'
+        - $ref: '#/components/schemas/LoginNeedsTotp'
