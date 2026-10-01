@@ -54,10 +54,8 @@ jobs:
         shell: pwsh
         run: echo "$(go env GOPATH)\bin" >> $env:GITHUB_PATH
 
-      - name: 引导 .venv-gen（openapi-python-client 钉版本）
-        run: |
-          python -m venv .venv-gen
-          .venv-gen\Scripts\python -m pip install "openapi-python-client==0.29.1"
+      - name: 引导 .venv-gen（版本取 tools.lock.json，路径按平台解析）
+        run: npm run venv:bootstrap
 
       - name: 依赖
         run: npm ci
@@ -84,6 +82,65 @@ jobs:
       # 出口闸：把三语工件装到**仓外临时目录**、按声明的入口解析、把示例真跑一次。
       # 与 release-clients.yml 用的是同两条脚本，所以"PR 绿"与"能发布"在这里是同一判据，
       # 不是两套会各自漂的断言。
+      - name: 出口闸 —— staging 合包
+        run: npm run package:clients
+
+      - name: 出口闸 —— 仓外真装、入口解析、示例执行
+        run: npm run smoke:clients
+
+  # POSIX job：不是把 Windows job 复制一遍清单，而是调同一批脚本 —— 门禁清单只住在
+  # tools/verify-all.ts 的 GATES 里，两条 job 都走 `npm run verify:all`，所以加一条门禁
+  # 不会出现"只进了一个 OS"的分叉。
+  # 为什么值得单开：生成器与工具链早已按平台分叉（tools/gen/run.ts 的 VENV_BIN_DIR、
+  # run-go-test.ts 的 go/go.exe），缺的是**机器证据**——没有这个 job，"POSIX 也能跑"
+  # 就只是一句没闸的断言，而反斜杠路径此前确实写死在 package.json 的脚本里。
+  verify-posix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: adapters/go/go.mod
+          cache: true
+          cache-dependency-path: adapters/go/go.sum
+
+      - name: 安装 oapi-codegen（版本钉 tools.lock.json）
+        run: go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.8.0
+
+      - name: go 工具进 PATH
+        run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: 引导 .venv-gen（版本取 tools.lock.json，路径按平台解析）
+        run: npm run venv:bootstrap
+
+      - name: 依赖
+        run: npm ci
+
+      - name: 恢复 vendor/upstream 缓存（按锚点 SHA 重拉）
+        run: npm run fetch:upstream
+
+      - name: 三语生成
+        run: npm run generate
+
+      - name: 生成物新鲜度（gen:check）
+        run: npm run gen:check
+
+      - name: verify:all —— 全部离线门禁
+        run: npm run verify:all
+
       - name: 出口闸 —— staging 合包
         run: npm run package:clients
 

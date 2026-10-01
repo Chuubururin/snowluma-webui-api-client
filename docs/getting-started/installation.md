@@ -1,10 +1,23 @@
 # 安装
 
-把一台新机器的工具链引导到「九条门禁都能跑」的状态。
+把一台新机器的工具链引导到「`npm run verify:all` 的离线门禁全链都能跑」的状态
+（清单与条数以 `docs/reference/gates.md` 和该命令的输出为准，本文不抄数字）。
 
 > [!WARNING]
 > 工具链版本以 [`tools.lock.json`](../../tools.lock.json) 为准，**不要凭记忆补版本号**——
 > 锁里缺哪项，哪项就报错拒跑。
+
+## 支持面（三个状态，各由什么证明）
+
+| 平台 | 状态 | 由什么证明 |
+| --- | --- | --- |
+| Windows x64 | 已验证 | `verify.yml` 的 `verify` job（长期在跑） |
+| Linux x64 | 有闸，尚无通过记录 | `verify.yml` 的 `verify-posix` job；它首航跑绿之前，本页不许写"Linux 已支持" |
+| macOS | 未验证 | 无 CI job。未验证 ≠ 不支持，但**不要按支持面排期**；撞到实际问题再进 `RoadMap.md` 待认领表并附实测证据 |
+
+依赖里唯一按平台分叉的是 venv 解释器目录（`Scripts` / `bin`）与 `go` / `go.exe`，
+两处都由单源给出（`tools/gen/run.ts` 的 `VENV_BIN_DIR`、`tools/lib/go-toolchain.ts`）。
+CI 因此不需要为某个 OS 另写一份命令，也不该在 workflow 里手写 venv 路径。
 
 ## 前置
 
@@ -15,9 +28,10 @@
 | Go | 1.27.1 | 适配器与 oapi-codegen |
 | Git | 任意新版 | 多条门禁直接 `git ls-files`/`git status` 取事实 |
 
-Windows 说明：仓库按「开发机 = Windows + Git Bash」写成，`generate` 的脚本路径带
-`\`（`.venv-gen\Scripts\python.exe`），POSIX 上需按 `.venv-gen/bin/python` 对应替换。
-CI 因此固定跑 `windows-latest`。
+> [!NOTE]
+> Linux 上常见只有 `python3` 而没有 `python`：`npm run venv:bootstrap` 两个名字都会试，
+> 但 `npm run test:py-adapter` 这类脚本调的是字面量 `python`（CI 的 setup-python 会提供它）。
+> 本机 Linux 跑适配器腿前先确认 `python` 在 PATH 上（ Debian/Ubuntu 可装 `python-is-python3`）。
 
 ## 步骤
 
@@ -30,13 +44,17 @@ npm ci
 ### 2. Python 生成环境（venv）
 
 ```bash
-python -m venv .venv-gen
-.venv-gen/Scripts/python -m pip install "openapi-python-client==0.29.1"
+npm run venv:bootstrap
 ```
+
+一条命令建 `.venv-gen` 并装 `openapi-python-client`：版本从 `tools.lock.json` 读，
+解释器目录按平台解析（Windows `Scripts` / POSIX `bin`），系统解释器名 `python` 与 `python3`
+都会试。别在 package.json 或 workflow 里另写 `pip install openapi-python-client==<某版本>`——
+那会把锁变成一份需要人肉同步的第二真相。
 
 > [!NOTE]
 > `.venv-gen` 不入库。为什么必须走 venv 而不是系统 python：openapi-python-client 的
-> post_hook（给产物补许可头）经 shell 执行，venv 的 Scripts 不在 PATH 上时 ruff 与 hook
+> post_hook（给产物补许可头）经 shell 执行，venv 的 Scripts/bin 不在 PATH 上时 ruff 与 hook
 > 会**静默跳过**、exit 仍是 0——头部消失而生成"成功"。`tools/gen/run.ts` 会把 venv 前置进
 > 子进程 PATH 再跑，这是唯一正确姿势。
 

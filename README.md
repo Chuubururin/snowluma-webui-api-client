@@ -52,9 +52,11 @@ TypeScript / Python / Go 三个类型化 SDK、行为三语同形的统一适配
 
    ```bash
    npm ci
-   python -m venv .venv-gen && .venv-gen/Scripts/python -m pip install "openapi-python-client==0.29.1"
+   npm run venv:bootstrap
    go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.8.0
    ```
+
+   （venv 的版本取 `tools.lock.json`，路径按平台解析；不要在别处再写一遍 `pip install`。）
 
 2. 按锚点重拉上游源码缓存，生成三语 SDK：
 

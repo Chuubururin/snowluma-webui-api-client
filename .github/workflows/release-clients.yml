@@ -49,10 +49,8 @@ jobs:
         shell: pwsh
         run: echo "$(go env GOPATH)\bin" >> $env:GITHUB_PATH
 
-      - name: 引导 .venv-gen（openapi-python-client 钉版本）
-        run: |
-          python -m venv .venv-gen
-          .venv-gen\Scripts\python -m pip install "openapi-python-client==0.29.1"
+      - name: 引导 .venv-gen（版本取 tools.lock.json，路径按平台解析）
+        run: npm run venv:bootstrap
 
       - run: npm ci
 

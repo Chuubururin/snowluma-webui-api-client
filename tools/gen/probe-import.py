@@ -8,8 +8,9 @@ pydantic 2.13.5 全在）。probe.py 旧 docstring 说 import 需要"新装包�
 实测为假，本文件是它的反面证据：包在这台机器上**本来就能被 import**，此前只是没人试。
 
 跑法（唯一正确形态，勿手敲变体）：`npm run probe:py-import`
-—— npm 在 Windows 下经 cmd 执行脚本，所以 package.json 里用反斜杠相对路径
-`.venv-gen\\Scripts\\python.exe`；把本文件挪成 venv 的 `-m` 目标是另一条死路
+—— 它走 `tools/py-venv-run.ts`，解释器目录名由 `tools/gen/run.ts` 的 `VENV_BIN_DIR` 按平台给出
+（Windows 是 `Scripts`、POSIX 是 `bin`），所以这条腿不再依赖 package.json 里的反斜杠字面量；
+把本文件挪成 venv 的 `-m` 目标是另一条死路
 （此前 post_hook 那次栽在"带引号的绝对路径进 PATH 查找"，见 tools.lock.json
 generationConstraints['openapi-python-client']）。
 
