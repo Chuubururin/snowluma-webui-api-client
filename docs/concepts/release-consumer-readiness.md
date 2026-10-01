@@ -9,7 +9,7 @@
 
 这条不是修辞。下面每一条都是实测出来的，且都躲在"全绿"后面。
 
-## 1. 被抓到的九处出口缺陷
+## 1. 被抓到的十处出口缺陷
 
 | 缺陷 | 位置 | 为什么既有门禁看不见 |
 | --- | --- | --- |
@@ -22,6 +22,7 @@
 | TS 适配层按"运行时文件的上一级"读规则表，装包后无处可读 | `adapters/typescript/rules.ts` 的默认解析 | 仓内那份表永远在 `adapters/` 上一级 ⇒ 每次测试都命中，走出仓就 ENOENT |
 | 三份 README 都写"见同目录 `provenance.json`"，工件里根本没有这件；而唯一的相关断言拿 README 散文自己当尺子 | `tools/lib/client-templates.ts` 的出处段 + `package.json` 的 `files` 白名单 | 计划成员断言与散文断言同时成立 —— 只有"装好之后的字节"这一面没人看过（评审复查抓到，不是冷克隆） |
 | 出口闸的 TS 腿把示例打包交给 `node node_modules/esbuild/bin/esbuild` | `tools/smoke-clients.ts` 的"用得动"层 | Linux 上那个文件被 esbuild 的 install.js（`os.platform() !== 'win32'` 分支）换成**原生二进制**并 chmod +x，node 加载必崩；Windows 上那里留的是 JS shim ⇒ 本机永远绿（`verify-posix` 首航实测） |
+| Release 的建目录步撞上前一步的落盘根 | `release-clients.yml` 打包步的 `New-Item -ItemType Directory dist`（缺 `-Force`） | 同 job 的上一步 `package:clients` 已经把 `dist/` 建出来了（它的落盘根正是 `dist/clients`），pwsh 包装脚本前置 `$ErrorActionPreference='stop'`，于是"目录已存在"这条**非终止**错误被升级成终止错误 ⇒ 整步 exit 1。本地只跑单条脚本，没人重放整条 job，所以这条只有 CI 才看得见 |
 
 前四条已修（改成按模块自身位置解析、包内 sibling 优先；第四条不是"修 replace"，而是
 **合并成同一个 module 让它消失**）。第 5、6 条是**冷克隆实测**抓到的——把它们单列出来是因为
@@ -40,6 +41,17 @@
 第七条不在原计划里，是出口闸第一次真跑抓到的。处置是打包期内嵌规则表
 （真源仍是 `adapters/rules.json`，内嵌副本按 `RulesTable` 受 tsc 检，相等性有断言钉住），
 按盘读表那一条另名 `createDiskClient` 保留。
+
+第 10 条不是工件内容红了，是**工件根本没出厂**：门禁全绿、两条出口闸在 CI 也全绿，
+红在建目录那一行，后面的"Release 正文"和"创建 Release"被 skip——这正是"任何一步红都不产出
+Release"这条口径想要的形状（宁可没有 Release，不可有未过闸的 Release），代价是那次契约变更
+没有对外产物。
+处置分两层：那一行补 `-Force`（幂等建目录），并由 `tools/workflow-pins.test.ts` 钉住
+"workflow 里任何建目录的执行行必须可重入"。判据落点刻意选在**脚本字节**而不是 CI 日志：
+这条 job 的本地重放方式是照原样从 YAML 取出 `id: pack` 那步、在 `npm run package:clients`
+之后真跑一遍（实测连跑两遍 exit 0）——它既复现了红，也证明了修完之后**后面几行**（tar、
+`Copy-Item` 血统收据、`SHA256SUMS.txt`）同样没别的坑；只钉那一行而不重放，等于把"修好了"
+建立在没有跑过的假设上。
 
 ## 2. 工件形态
 
@@ -110,7 +122,7 @@ UTC 时刻只承担防重复发布的职责，不表达版本语义；上游锚�
 | 位置 | 进不进 | 理由 |
 | --- | --- | --- |
 | 离线 `GATES` | 不进 | 它要装包、要取 `httpx`，会破 GATES 的"离线"性质；冷克隆不该被网络安装卡住 |
-| Release 前置闸 | 必进，次序 `verify:all` → `package:clients` → `smoke:clients` → 打包 | 任何一步红都不产出 Release |
+| Release 前置闸 | 必进，次序 `verify:all` → `package:clients` → `smoke:clients` → 打包（共用 dist/，故打包步建目录必须幂等）| 任何一步红都不产出 Release |
 | CI（Windows 与 POSIX 两条 job） | 必进 | 让"工件可消费"每次契约变更都有机器证据 |
 
 两条实测教训，写下来防止被"测试全绿"重新骗一次：
@@ -142,6 +154,7 @@ UTC 时刻只承担防重复发布的职责，不表达版本语义；上游锚�
 | Python 规则表删掉上一层兜底 | `adapters/python/test_rules_resolution.py` | 红 exit 1（1 failure + 1 error）→ 绿 0 |
 | 版本号抄回 release job | `workflow-pins.test.ts` | 红 exit 1 → 绿 0 |
 | posix job 少跑一步出口闸 | `workflow-pins.test.ts` 的步序相等 | 红 exit 1（"两条 job 步数不同：8 vs 9"）→ 绿 0 |
+| 建目录步不带 `-Force` | `workflow-pins.test.ts` 的可重入断言 | 红 exit 1（点名 `release-clients.yml` 那一行）→ 绿 0。这一条的"变异"**不用造假**：它就是合入 main 后真的红过的那份字节，红过之后才有这条断言 |
 | `envWithGo` 退回硬塞大写 `PATH` | `go-toolchain.test.ts` 的单键断言 | 红 exit 1 → 绿 0 |
 | 删掉 `exitCodeFor` 的 facility 分支 | `smoke-clients.test.ts` | 红 exit 1 → 绿 0 |
 | 从导航表摘掉一页 | `docs-index.test.ts` | 红 exit 1 → 绿 0 |
@@ -189,7 +202,7 @@ workflow 的 venv 引导收进 `npm run venv:bootstrap`（版本从 `tools.lock.
 | `tools/client-staging.test.ts` | vitest | 工件缺件、metadata 版本与契约不符、嵌套 `go.mod`、缺 `go.mod`/`go.sum` 时不点名拒收、`copyFrom` 源不存在、README 指向的件不在计划里、必发件清单被删薄、内嵌表与真源不等、声明的入口拼错 |
 | `tools/client-templates.test.ts` | vitest | README 散文与示例不同源、验收标记只存在于内嵌代码块、必需段被从模板删掉（合同写死在测试里）、Python 两层抽象被混写 |
 | `tools/go-toolchain.test.ts` | vitest | 推导出的目录不存在、Go 腿没前置同一份推导结果（出现第二条认知）、PATH 键名被写成第二份、报错文本里出现具体机器路径、需要 go 的入口绕过 envWithGo 自己拼 PATH |
-| `tools/workflow-pins.test.ts` | vitest | workflow 的执行行抄工具链版本号、留下 `go install …@vX`/`pip install …==` 抄本、调不存在的 npm 脚本、引导步排在 `npm ci` 之前、两条 OS job 的步序分叉 |
+| `tools/workflow-pins.test.ts` | vitest | workflow 的执行行抄工具链版本号、留下 `go install …@vX`/`pip install …==` 抄本、调不存在的 npm 脚本、引导步排在 `npm ci` 之前、两条 OS job 的步序分叉、建目录的执行行不可重入（`New-Item -ItemType Directory` 缺 `-Force`） |
 | `tools/docs-index.test.ts` | vitest | 文档无人导航、相对链接死、`npm run` 指向不存在的脚本 |
 | `npm run smoke:clients` | 独立脚本（Release 前置闸 + CI） | 上面第 5 节的三层，含"README 承诺的同目录件必须在**装好的包**里" |
 
