@@ -8,6 +8,10 @@ spike/out/
 generated/
 .venv-gen/
 
+# 出口工件的 staging 落点（npm run package:clients 产）。与 generated/ 同类：
+# 全部可由 spec + adapters 重出，入库只会让 verify 的"工作区干净"道每次打包都变脏。
+dist/
+
 # vitest 的运行期缓存（`node_modules/.bin/vitest run` 在本仓库会生成 .vitest/json/*.json）
 # 与 node_modules/ 同类：机器生成、跨机器不可比、入库只会让 `git status` 在每次跑测试后变脏。
 .vitest/

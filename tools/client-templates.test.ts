@@ -31,9 +31,18 @@ function readmeProse(lang: (typeof LANGS)[number]) {
 }
 
 describe('README 与示例同源', () => {
-  it('TS：示例 import 的 specifier 等于常量，且 README 散文自己就写明包名', () => {
-    expect(renderExample('typescript')).toContain(`from '${TS_PACKAGE_NAME}'`);
-    expect(readmeProse('typescript')).toContain(TS_PACKAGE_NAME);
+  it('TS：README 散文写明两处显式另名，消费者不会撞见看不见的别名', () => {
+    const prose = readmeProse('typescript');
+    expect(prose).toContain('createSdkClient');
+    expect(prose).toContain('SdkLoginError');
+  });
+
+  it('TS：README 里承诺的 import 与示例同为包名，且示例取的两层符号都在出口上', () => {
+    const ex = renderExample('typescript');
+    expect(readmeProse('typescript'), 'README 散文没写明包名').toContain(TS_PACKAGE_NAME);
+    expect(ex).toContain(`from '${TS_PACKAGE_NAME}'`);
+    expect(ex).toMatch(/createClient/);   // 行为适配层
+    expect(ex).toMatch(/getSystem/);      // 生成的类型化调用面
   });
 
   it('Python：示例的 import 与 README 散文同为 PY_PACKAGE（装包后的可导入名）', () => {

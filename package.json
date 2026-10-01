@@ -19,6 +19,7 @@
     "integrity": "tsx tools/integrity-check.ts",
     "fetch:upstream": "tsx tools/fetch-upstream.ts",
     "generate": "tsx tools/gen/run.ts",
+    "package:clients": "tsx tools/package-clients.ts",
     "gen:demo": "tsx tools/gen/run.ts demo",
     "gen:check": "tsx tools/gen/run.ts demo && git diff --exit-code HEAD -- \":(glob)demo/**.gen.ts\"",
     "verify:all": "tsx tools/verify-all.ts",

@@ -73,6 +73,11 @@ destructive 分级闸，以及与 Python / Go 同形的单源规则表。
 目录布局：\`generated/\` 是生成码，\`adapter/\` 是手写的行为适配层，\`index.ts\` 是二者的出口，
 打包产物在 \`dist/\`。\`rules.json\` 是三语共用的一张规则表（本目录带一份副本，改它请改源仓真源）。
 
+两层的名字都从同一个包名拿：生成面给出 \`getSystem\`、\`login\` 这类类型化调用，适配层给出
+\`createClient\`（行为层工厂，收注入的 \`transport\`）。另有两处显式另名，是实测撞名的处置而不是装饰：
+SDK 自己的传输配置工厂在出口上叫 \`createSdkClient\`（\`createClient\` 归行为层），
+每操作错误并集类型叫 \`SdkLoginError\`（\`LoginError\` 归适配层的引导失败类）。
+
 非幂等写请求（POST / DELETE）遇到 401 **不自动重放**，抛 \`SessionExpiredError\`——
 重复执行有实际后果，这是有意的行为差异，不是缺陷。
 
@@ -175,19 +180,24 @@ export function renderExample(lang: ArtifactLang): string {
   switch (lang) {
     case 'typescript':
       return `// ${BANNER}
-// 自定义传输走 createClient({ fetch })；每个操作再收 options.client。
-// 返回是 RequestResult 解构形态，所以断言取 response.status，不裸读 body 字段。
-import { createClient, login } from '${TS_PACKAGE_NAME}';
+// 一个 specifier 拿两层：createClient 是手写行为适配层，getSystem 是生成的类型化调用面。
+// 假传输按路径分派，让门控引导真的走到终止，而不是返回一个万能 200。
+import { createClient, getSystem } from '${TS_PACKAGE_NAME}';
 
-const fakeFetch = (async () =>
-  new Response(JSON.stringify({ success: true, token: 't', mustChangePassword: false }), {
-    status: 200,
-  })) as unknown as typeof fetch;
+const routes: Record<string, unknown> = {
+  '/api/login': { success: true, token: 't', mustChangePassword: false },
+  '/api/agreements': { version: 'v1', consentRequired: false, documents: [] },
+};
 
-const client = createClient({ fetch: fakeFetch, baseUrl: 'http://127.0.0.1:5099' });
-const { response } = await login({ client, body: { password: 'x' } });
+const transport = async (_method: string, path: string) => ({
+  status: 200,
+  json: routes[path] ?? { success: true },
+});
 
-console.log('${OK_TOKEN.typescript}', response.status === 200);
+const client = createClient({ baseUrl: 'http://127.0.0.1:5099', transport });
+const state = await client.bootstrapSession({ password: 'x' });
+
+console.log('${OK_TOKEN.typescript}', state.token === 't' && typeof getSystem === 'function');
 `;
     case 'python':
       return `# ${BANNER}
