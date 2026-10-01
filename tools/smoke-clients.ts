@@ -41,11 +41,21 @@ export interface SmokeReport {
   facility?: string[];
 }
 
-/** 三语齐备是判定成立的前提：少一门就是"没验那一门"，不许算通过。空清单同样红。 */
+/**
+ * 完整性判据来自工件布局（`ARTIFACT_DIRS`），不是硬编码的门数。
+ * 写死"必须三门"时的失效形状是：加了第四门语言的工件面，出口闸直接判红，
+ * 而红讯号读起来像"闸坏了"，最可能被的处置就是把那个 3 改小或跳过一门 ——
+ * 换成"声明过的每一门都得有结果"，加一门就自动多验一门，报错也点名缺的是哪门。
+ */
+export function missingLanguageResults(report: SmokeReport): ArtifactLang[] {
+  return (Object.keys(ARTIFACT_DIRS) as ArtifactLang[]).filter((lang) => !report.langs[lang]);
+}
+
+/** 少一门就是"没验那一门"，不许算通过；空清单同样红。 */
 export function exitCodeFor(report: SmokeReport): number {
   if (report.facility?.length) return FACILITY_EXIT;
+  if (missingLanguageResults(report).length) return 1;
   const entries = Object.values(report.langs) as LangResult[];
-  if (entries.length !== 3) return 1;
   return entries.every((r) => r.installed && r.entryOk && r.ranOk) ? 0 : 1;
 }
 
@@ -384,6 +394,10 @@ if (isCliEntry(import.meta.url, process.argv[1])) {
     console.log(`${pass ? '✓' : '✗'} ${summarizeLine(lang as ArtifactLang, r)}`);
   }
   const code = exitCodeFor(report);
+  const missingLangs = missingLanguageResults(report);
+  if (missingLangs.length) {
+    console.error(`这些声明过的工件语言没有结果：${missingLangs.join(', ')} —— 没验不等于验过。`);
+  }
   if (code === 1) {
     console.error(
       '出口闸未通过。逐层对照：\n' +

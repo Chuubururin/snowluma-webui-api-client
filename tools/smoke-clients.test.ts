@@ -8,7 +8,21 @@
  */
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { FACILITY_EXIT, exitCodeFor, facilityNote, summarizeLine, type LangResult, type SmokeReport } from './smoke-clients.js';
+import { ARTIFACT_DIRS } from './lib/client-artifact.js';
+import {
+  FACILITY_EXIT,
+  exitCodeFor,
+  facilityNote,
+  missingLanguageResults,
+  summarizeLine,
+  type LangResult,
+  type SmokeReport,
+} from './smoke-clients.js';
+
+/** 只扫代码面：解释失效历史的注释必然带着被禁的字面量，量散文会把案发现场当成罪行。 */
+function codeOf(file: string): string {
+  return readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+}
 
 const ok: LangResult = { installed: true, entryOk: true, ranOk: true, detail: '' };
 
@@ -43,7 +57,17 @@ describe('smoke 收口', () => {
   it('缺一门语言 → 1；清单为空 → 1（与 verify-all 的"清单为空"同一形状）', () => {
     const two = { langs: { typescript: ok, python: ok } } as SmokeReport;
     expect(exitCodeFor(two)).toBe(1);
+    expect(missingLanguageResults(two)).toEqual(['go']);
     expect(exitCodeFor({ langs: {} } as SmokeReport)).toBe(1);
+    expect(missingLanguageResults({ langs: {} } as SmokeReport)).toEqual(['typescript', 'python', 'go']);
+  });
+
+  it('完整性判据取自 ARTIFACT_DIRS：缺哪几门就点名哪几门', () => {
+    // 这里刻意**没有**一条"源码里不许出现语言数字面量"的形状断言：写过一条
+    // `/entries\.length !== \d/`，变异检验时把变量改成 `all.length !== 3` 它就咬不动了 ——
+    // 只认一种拼法的断言给的是假安全感，不如不写。能钉住的是行为：缺谁就报谁。
+    expect(missingLanguageResults({ langs: {} } as SmokeReport)).toHaveLength(Object.keys(ARTIFACT_DIRS).length);
+    expect(exitCodeFor(report({ go: undefined }) as SmokeReport)).toBe(1);
   });
 
   it('设施故障退出码与判定红退出码不同（"没验"绝不能读成"验过"或"验不过"）', () => {
@@ -71,11 +95,7 @@ describe('TS 腿的 esbuild 调用形态', () => {
    * 所以本机永远跑得出绿。用 JS API（`import { build } from 'esbuild'`）才是按包声明的
    * 跨平台入口，而打包器 package-clients.ts 早就这么调了：同一条链上两处两种形态必然分叉。
    */
-  const src = readFileSync('tools/smoke-clients.ts', 'utf8');
-
-  // 只扫代码面：本文件那段解释"当初为什么崩"的注释里就带着 `node_modules/esbuild/bin/esbuild`
-  // 这个字面量 —— 拿关键词量散文，会把案发现场当成罪行本身（第一版断言就是这么误红的）。
-  const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const code = codeOf('tools/smoke-clients.ts');
 
   it('不许取 esbuild 的 bin 路径交给 node 执行', () => {
     expect(code).not.toMatch(/esbuild[\\/]bin/);
