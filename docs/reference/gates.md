@@ -2,7 +2,7 @@
 
 ## 清单在哪里
 
-门禁清单的唯一真源是 `tools/verify-all.ts` 的 `GATES` 数组（9 条离线 + `--fixture`
+门禁清单的唯一真源是 `tools/verify-all.ts` 的 `GATES` 数组（离线若干条 + `--fixture`
 追加 L4）。本文**故意不复制那张表**——注释与表各存一份就是两份认知分叉，
 而这条分叉本身由 `tools/verify-all.test.ts` 钉着：
 
@@ -12,7 +12,7 @@
 - `REQUIRED_GATE_IDS`（规格点名的五条）不许缺席
 - `test:fixture` **不在**默认清单里——L4 只能显式加
 
-想知道当前九条是什么：读 `tools/verify-all.ts`，或跑一次看它自己打印的 ✓/✗ 行。
+想知道当前有哪些条：读 `tools/verify-all.ts`，或跑一次看它自己打印的 ✓/✗ 行。
 
 ## 退出码语义
 

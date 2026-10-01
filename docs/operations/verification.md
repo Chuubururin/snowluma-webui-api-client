@@ -4,24 +4,35 @@
 
 | 层 | 触发 | 内容 |
 | --- | --- | --- |
-| 本地一条命令 | 手动 `npm run verify:all` | 9 条离线门禁（见 [gates.md](../reference/gates.md)） |
-| CI | 每次 push / PR | `.github/workflows/verify.yml`：完整工具链引导 + vendor 重拉 + 三语生成 + gen:check + **同一条 9 门禁链** |
+| 本地一条命令 | 手动 `npm run verify:all` | 全部离线门禁（见 [gates.md](../reference/gates.md)） |
+| CI | 每次 push / PR | `.github/workflows/verify.yml`：Windows 与 POSIX 两条 job，各自完整引导 + vendor 重拉 + 三语生成 + gen:check + **同一份离线门禁清单** + 出口闸 |
 | 活体 L4 | 本机 `-- --fixture` | 全新一次性上游实例上的 5 条硬要求 |
 
 ## CI 的四条 workflow
 
-### verify.yml（主链，windows-latest）
+### verify.yml（主链，windows-latest + ubuntu-latest）
 
 步骤：checkout → setup-node/python/go → `go install oapi-codegen@v2.8.0` →
-建 `.venv-gen`（钉 openapi-python-client==0.29.1）→ `npm ci` →
+`npm run venv:bootstrap`（版本从 `tools.lock.json` 读，不在 workflow 里抄）→ `npm ci` →
 **`npm run fetch:upstream`（按锚点 SHA 重拉 vendor）** → `npm run generate`（三语全量）→
-`npm run gen:check`（跟踪词表逐字节对 HEAD）→ `npm run verify:all`。
+`npm run gen:check`（跟踪词表逐字节对 HEAD）→ `npm run verify:all` →
+`npm run package:clients` → `npm run smoke:clients`（出口闸三层）。
 job 级 `PYTHONIOENCODING=utf-8`。
 main 受 branch protection：`verify` 检查（context 实测名，不带 OS 后缀）是合入必要条件，
 **进 main 的改动一律走 PR，且 CI 绿后必须人工审核合入**（本仓禁用 auto-merge）。
 
-为什么是 windows runner：`generate` 的三段脚本按开发机写死了 Windows 路径
-（`.venv-gen\Scripts\python.exe`），POSIX runner 跑不了完整链。
+**两条 job 而不是复制清单**：门禁清单只住在 `tools/verify-all.ts` 的 `GATES` 里，
+两个 job 都只调 `npm run verify:all`，所以新增一条门禁不会出现"只进了一个 OS"的分叉。
+Windows 是主链（长期在跑）；`verify-posix` 是 Linux 的闸，**已跑绿一次**：全部离线门禁 + `gen:check`
++ 两条出口闸都在 ubuntu 上过。要记的是它**第一次首航是红的**——红在出口闸 TS 腿把
+`node_modules/esbuild/bin/esbuild` 交给 node 执行（Linux 上那是原生二进制，Windows 上是 JS shim，
+所以本机永远看不出来），修完才绿。这一格的历史就是这条 job 的价值：没有它，"POSIX 也能跑"
+会一直是一句没闸的断言。两条 job 的 `run:` 序列现在由 `tools/workflow-pins.test.ts` 钉成逐条相等。
+
+`verify-posix` 加出来之前先在 WSL Ubuntu 实测过，抓到两条把 Windows 路径语义焊死在断言里的既有测试
+（venv 目录名字面量、`C:\repo\...` 当绝对路径）——这类失效在 Windows-only 的链上是永久不可见的。
+本机可验的面：`fetch:upstream` 可用；补上 `generated/typescript` 后全量 vitest 789 passed / 0 断言失败，
+唯一红是缺 `generated/go`（本机无 go 工具链，CI 里 generate 先跑）。
 
 **为什么必须有 vendor 重拉步**：`generated/` 与 `vendor/upstream/` 都不入库，
 而 drift/ui-coverage/build-anchor 绊线读 vendor——冷克隆不恢复缓存这三条必红。

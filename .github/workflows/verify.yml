@@ -1,14 +1,19 @@
 # 派生自 SnowLuma 源码 · 非商业自用 · 不发包管理器
 #
-# verify:all 离线主链（9 条门禁）在 CI 里强制执行——门禁链早已全自动，缺的从来是
+# verify:all 离线主链（全部门禁，条数以 tools/verify-all.ts 的 GATES 与 npm run verify:all
+# 的输出为准，这里不抄数字）在 CI 里强制执行——门禁链早已全自动，缺的从来是
 # "没人按按钮时它自己会不会跑"。L4（活夹具）不在 CI：它要拉起真实 SnowLuma 实例，
 # 上游本体不进仓库，只能在操作者本机跑（npm run verify:all -- --fixture）。
 #
-# 为什么是 windows-latest：generate 的三段 npm 脚本按本仓开发机写死 Windows 路径
-# （.venv-gen\Scripts\python.exe），POSIX runner 跑不了；demo-regen.yml 为此才收窄到
-# 只有 typescript 一段。这里引导完整工具链（node/python/go + 两个钉版本的生成器），
-# 把三语生成和全部 9 条离线门禁放进 CI。工具链版本以 tools.lock.json 为准：
-#   openapi-python-client 0.29.1 · oapi-codegen v2.8.0 · go 见 adapters/go/go.mod
+# PR 链上还跑一次出口闸（package:clients + smoke:clients）：源码树全绿不等于交付物可消费，
+# "工件装不上/入口指错/示例跑不动"这三类失效只有真装一次才现形，而 Release 链跑到
+# 发布当场才知道就太晚了。
+#
+# 为什么有两条 job 而不是矩阵：required check 的实测名是 `verify`（不带 OS 后缀），
+# 改成矩阵会让检查名变成 `verify (windows-latest)` 这类，branch protection 会等一个
+# 永远不会来的检查。两条 job 的 `run:` 序列必须逐条相等，这条由 tools/workflow-pins.test.ts
+# 执法 —— 复制两份步骤的风险是"加一条门禁只进了一个 OS"，钉住相等就把这个风险换成了
+# 一次变红。工具链版本只住在 tools.lock.json，workflow 里不许出现版本号或 venv/go 路径。
 name: verify-all
 
 on:
@@ -43,20 +48,20 @@ jobs:
           cache: true
           cache-dependency-path: adapters/go/go.sum
 
-      - name: 安装 oapi-codegen（版本钉 tools.lock.json）
-        run: go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.8.0
-
-      - name: go 工具进 PATH
-        shell: pwsh
-        run: echo "$(go env GOPATH)\bin" >> $env:GITHUB_PATH
-
-      - name: 引导 .venv-gen（openapi-python-client 钉版本）
-        run: |
-          python -m venv .venv-gen
-          .venv-gen\Scripts\python -m pip install "openapi-python-client==0.29.1"
-
       - name: 依赖
         run: npm ci
+
+      # 两条引导都调仓内脚本（tsx 来自 node_modules，所以必须排在 npm ci 之后）：
+      # 版本一律从 tools.lock.json 读，workflow 里不许出现 `pip install pkg==X` 或
+      # `go install …@vY` —— 那是 AGENTS.md「真源在哪」表明列的派生面。
+      - name: 引导 .venv-gen（版本取 tools.lock.json，路径按平台解析）
+        run: npm run venv:bootstrap
+
+      - name: 安装 oapi-codegen（版本取 tools.lock.json）
+        run: npm run oapi:install
+
+      # 这里不再往 GITHUB_PATH 里塞 `go env GOPATH`/bin：tools/lib/go-toolchain.ts 会把
+      # GOROOT/bin 与 <GOPATH>/bin 一并推导前置，两处都写就等于两处会漂。
 
       # vendor/upstream/ 不入库（gitignore），而 drift、ui-coverage、build-anchor 基线绊线
       # 三条门禁都读它——冷克隆不恢复缓存就必红，而 lock 明令禁止用 skip/放宽把它变绿。
@@ -74,5 +79,70 @@ jobs:
       - name: 生成物新鲜度（gen:check）
         run: npm run gen:check
 
-      - name: verify:all —— 9 条离线门禁
+      - name: verify:all —— 全部离线门禁
         run: npm run verify:all
+
+      # 出口闸：把三语工件装到**仓外临时目录**、按声明的入口解析、把示例真跑一次。
+      # 与 release-clients.yml 用的是同两条脚本，所以"PR 绿"与"能发布"在这里是同一判据，
+      # 不是两套会各自漂的断言。
+      - name: 出口闸 —— staging 合包
+        run: npm run package:clients
+
+      - name: 出口闸 —— 仓外真装、入口解析、示例执行
+        run: npm run smoke:clients
+
+  # POSIX job：不是把 Windows job 复制一遍清单，而是调同一批脚本 —— 门禁清单只住在
+  # tools/verify-all.ts 的 GATES 里，两条 job 都走 `npm run verify:all`，所以加一条门禁
+  # 不会出现"只进了一个 OS"的分叉。
+  # 为什么值得单开：生成器与工具链早已按平台分叉（tools/gen/run.ts 的 VENV_BIN_DIR、
+  # run-go-test.ts 的 go/go.exe），缺的是**机器证据**——没有这个 job，"POSIX 也能跑"
+  # 就只是一句没闸的断言，而反斜杠路径此前确实写死在 package.json 的脚本里。
+  verify-posix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: adapters/go/go.mod
+          cache: true
+          cache-dependency-path: adapters/go/go.sum
+
+      - name: 依赖
+        run: npm ci
+
+      - name: 引导 .venv-gen（版本取 tools.lock.json，路径按平台解析）
+        run: npm run venv:bootstrap
+
+      - name: 安装 oapi-codegen（版本取 tools.lock.json）
+        run: npm run oapi:install
+
+      - name: 恢复 vendor/upstream 缓存（按锚点 SHA 重拉）
+        run: npm run fetch:upstream
+
+      - name: 三语生成
+        run: npm run generate
+
+      - name: 生成物新鲜度（gen:check）
+        run: npm run gen:check
+
+      - name: verify:all —— 全部离线门禁
+        run: npm run verify:all
+
+      - name: 出口闸 —— staging 合包
+        run: npm run package:clients
+
+      - name: 出口闸 —— 仓外真装、入口解析、示例执行
+        run: npm run smoke:clients

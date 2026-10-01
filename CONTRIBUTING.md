@@ -39,9 +39,9 @@
 | `vendor/upstream/` | 按锚点 SHA 拉取的上游源码副本（不入库，drift 类门禁的证据面） |
 | `adapters/` | 三语统一适配器（bootstrap 门控、规则引擎，三语同形） |
 | `demo/` | 套壳控制台：手写语义路由 + 浏览器客户端（见 `demo/README.md`） |
-| `tools/` | 生成管线、9 条门禁、夹具、脱敏、判据引擎——全部工程侧 |
+| `tools/` | 生成管线、离线门禁与出口闸、夹具、脱敏、判据引擎——全部工程侧 |
 | `docs/` | 开发者手册（入门 / 概念 / 指南 / 参考 / 运维） |
-| `.github/workflows/` | 四条 CI：verify / demo-regen / upstream-sync / release-clients |
+| `.github/workflows/` | 四条 CI：verify（Windows + POSIX 两个 job）/ demo-regen / upstream-sync / release-clients |
 
 模块边界是**实测 import 矩阵**而不是愿望清单，逐条见
 [`docs/concepts/architecture.md`](docs/concepts/architecture.md)。

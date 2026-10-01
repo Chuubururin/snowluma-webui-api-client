@@ -41,7 +41,7 @@
   "goInstall": {
     "status": "INSTALLED-ZIP-SESSION-PATH",
     "method": "官方 zip（go1.27.1.windows-amd64.zip，78931360 字节，sha256 a3911b5e0e1b1053f25ed0675f4c1c6aad1e2bfcf253df2b9be4caabd2edd95d 已由 go.dev/dl 的 JSON 校验通过）解压到 C:\\go，未运行任何安装器。",
-    "notPersisted": "按用户裁定**不写系统 PATH、不动注册表**。每个新终端/子进程须自行前置：export PATH=\"/c/go/bin:$PATH\"（或等价地调用绝对路径 C:\\go\\bin\\go.exe）。",
+    "notPersisted": "按用户裁定**不写系统 PATH、不动注册表**。仓内需要 go / oapi-codegen 的入口（tools/gen/run.ts 的 Go 腿、tools/run-go-test.ts、tools/smoke-clients.ts）都经 tools/lib/go-toolchain.ts 推导：GOROOT 取本文件 goInstall.env.GOROOT，go install 的落点取 `go env GOPATH` 的 bin，前置进子进程 PATH。手工在终端里跑 go 命令时仍需自行前置。",
     "toolchainPin": "GOTOOLCHAIN 当前为 auto：若某 go.mod 要求更高版本，Go 会自行下载工具链，破坏可复现性。本项目的 Go 侧命令应显式带 GOTOOLCHAIN=local。",
     "env": {
       "GOROOT": "C:\\go",

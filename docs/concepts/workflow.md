@@ -4,7 +4,7 @@
 
 ```
 改代码/改 spec
-  → 本地：npm run verify:all          （9 条离线门禁，一条命令，退出码是唯一信号）
+  → 本地：npm run verify:all          （全部离线门禁，一条命令，退出码是唯一信号）
   → 需要活体证据时：加 -- --fixture    （L4 一次性实例）
   → push 分支 / PR
   → CI 自动重跑整条链（verify.yml，windows-latest，冷克隆先重拉 vendor）

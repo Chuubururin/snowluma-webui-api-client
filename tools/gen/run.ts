@@ -12,8 +12,9 @@
  * pin 版本分叉，头部同样会消失。三家的共同点是**缺头部不会让命令失败**，所以只能事后取证。
  *
  * 用法：`node_modules/.bin/tsx tools/gen/run.ts [typescript|python|go]`
- * （Go 侧还要求 PATH 上有 oapi-codegen 与 go —— 见 tools.lock.json → goInstall.notPersisted，
- *  本机裁定不写系统 PATH，故每个终端自行 `export PATH="/c/go/bin:/c/Users/Administrator/go/bin:$PATH"`。）
+ * （Go 侧要 `go` 与 oapi-codegen 可执行：两者分别落在锁记的 GOROOT/bin 与 <GOPATH>/bin，
+ *  本脚本按 tools.lock.json 推导后前置进子进程 PATH —— Go 按 notPersisted 裁定不写系统 PATH，
+ *  所以操作者的终端里没有它们也能跑。）
  */
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -21,6 +22,8 @@ import { existsSync, unlinkSync } from 'node:fs';
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { delimiter, join, resolve } from 'node:path';
 import { isCliEntry } from '../lib/cli.js';
+import { GO_MODULE_ID } from '../lib/client-artifact.js';
+import { goToolchainDirs } from '../lib/go-toolchain.js';
 import { runDemoGen } from './demo/index.js';
 
 export const BANNER = '派生自 SnowLuma 源码 · 非商业自用 · 不发包管理器';
@@ -51,6 +54,8 @@ export interface GenCommand {
 
 /** venv 的可执行目录（客户端批次自建，入库说明见 python-config.yml 与本文件；不入库由 .gitignore 保证）。 */
 export const VENV_BIN_DIR = join('.venv-gen', process.platform === 'win32' ? 'Scripts' : 'bin');
+/** venv 里的解释器名，同样按平台分叉（Windows `python.exe` / POSIX `python`）。 */
+export const VENV_PY = join(VENV_BIN_DIR, process.platform === 'win32' ? 'python.exe' : 'python');
 
 function pin(lock: LockForGen, key: string): string {
   const v = lock.generators[key];
@@ -63,10 +68,37 @@ function pin(lock: LockForGen, key: string): string {
  * Windows 下 process.env 里的实际键名是 `Path`；直接塞一个大写 `PATH` 会得到两份大小写不同的副本，
  * 谁覆盖谁取决于运行时 —— 所以先按大小写无关地把原键名找出来再改。
  */
-function withPathFront(dir: string): Record<string, string> {
+function withPathFront(dir: string | string[]): Record<string, string> {
   const key = Object.keys(process.env).find((k) => k.toUpperCase() === 'PATH') ?? 'PATH';
   const cur = process.env[key] ?? '';
-  return { [key]: [resolve(dir), cur].filter(Boolean).join(delimiter) };
+  const dirs = (Array.isArray(dir) ? dir : [dir]).map((d) => resolve(d));
+  return { [key]: [...dirs, cur].filter(Boolean).join(delimiter) };
+}
+
+/**
+ * Go 腿的两类可执行文件不在同一个目录：`go` 在锁记的 GOROOT/bin，`go install` 出来的
+ * oapi-codegen 在 <GOPATH>/bin。冷克隆实测：只借 GOROOT 时 generate 的 Go 腿照样 ENOENT，
+ * 而它报的"环境问题"其实是我们没按自己的文档去推导目录。
+ */
+function goPathEnv(): Record<string, string> {
+  const dirs = goToolchainDirs();
+  return dirs.length ? withPathFront(dirs) : {};
+}
+
+/**
+ * 提示里只写推导出来的目录或安装动作，不写任何具体机器的路径 ——
+ * 冷克隆实测到的原话把作者机器 GOROOT 与 GOPATH 两个目录逐字写死在 export 里，
+ * 换一台机器它就是一条把人往不存在的目录引的假恢复动作。
+ */
+function goPathHint(oapi?: string): string {
+  const dirs = goToolchainDirs();
+  const where = dirs.length
+    ? `本机推导到的可执行目录：${dirs.join(delimiter)}`
+    : '没推导到 Go 的可执行目录：按 docs/getting-started/installation.md 第 3 步装 Go（版本取自 tools.lock.json）。';
+  const install = oapi
+    ? `\n  oapi-codegen 不在上面这些目录里时先装：go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@${oapi}`
+    : '';
+  return `  Go 工具链不写系统 PATH（tools.lock.json → goInstall.notPersisted）。${where}${install}`;
 }
 
 /** 三条命令逐字来自 tools.lock.json 与 spike/findings.md（含 Q6 的实测校正），禁止凭记忆改。 */
@@ -102,7 +134,7 @@ export function genCommands(lock: LockForGen): GenCommand[] {
       // 实测校正（0.29.1 `generate --help`）：没有 -c/-p/-o 短参数，spec 走 `--path`；
       // 重跑必须 `--overwrite`，否则"Directory already exists"直接拒绝（findings Q6）。
       argv: [
-        join(VENV_BIN_DIR, process.platform === 'win32' ? 'python.exe' : 'python'),
+        VENV_PY,
         '-m', 'openapi_python_client', 'generate',
         '--path', SPEC_PATH,
         '--output-path', 'generated/python',
@@ -121,8 +153,8 @@ export function genCommands(lock: LockForGen): GenCommand[] {
       // `flag provided but not defined`）。模板覆盖放在 config 的 `user-templates` 里，
       // CLI 侧只需要 --config。
       argv: ['oapi-codegen', '--config', 'tools/gen/oapi-codegen.yaml', SPEC_PATH],
-      env: { GOTOOLCHAIN: 'local' },
-      why: `${oapi} 无 --include/--header，走 config 的 output-options.user-templates 覆盖 imports.tmpl；GOTOOLCHAIN 钉 local`,
+      env: { GOTOOLCHAIN: 'local', ...goPathEnv() },
+      why: `${oapi} 无 --include/--header，走 config 的 output-options.user-templates 覆盖 imports.tmpl；GOTOOLCHAIN 钉 local；GOROOT/bin 与 <GOPATH>/bin 从 tools.lock.json 推导后前置`,
     },
   ];
 }
@@ -232,6 +264,33 @@ function invalidateProvenance(): void {
 }
 
 /**
+ * init 只写出 module 声明；require 清单与 go.sum 要 tidy 才长出来。
+ * 冷克隆实测抓到：新克隆的 generated/go 是一个"没有依赖清单的模块"，仓内 `go test ./...`
+ * 却仍绿 —— 因为 adapters/go 的 go.mod 替它把 indirect 依赖都列全了。那份兜底一出仓就没了：
+ * 出口工件以 generated/go 为 module 真源，消费者拿到的第一个构建就是 missing go.sum entry。
+ */
+function tidyGoModule(): void {
+  const dir = 'generated/go';
+  if (!existsSync(join(dir, 'go.mod'))) return;
+  const r = spawnSync('go', ['mod', 'tidy'], {
+    cwd: dir,
+    stdio: 'inherit',
+    env: { ...process.env, ...goPathEnv(), GOTOOLCHAIN: 'local' },
+  });
+  if (r.error || r.status !== 0) {
+    console.error(
+      `go mod tidy 失败（${r.error ? spawnReason(r.error) : `exit ${r.status}`}）—— ` +
+        'generated/go 的依赖清单不完整，出口工件会带一个装不上的模块。\n' +
+        goPathHint() +
+        '\n  tidy 需要 module 缓存里有生成物 import 的运行时包（github.com/oapi-codegen/runtime）；' +
+        '离线机器上先联网跑一次，或恢复 GOMODCACHE 再重试。',
+    );
+    invalidateProvenance();
+    process.exit(r.status ?? 1);
+  }
+}
+
+/**
  * 生成目录必须是 Go 模块，否则 adapters/go 无法 import 它。
  * 为什么由脚本而不是人工做：`generated/` 已在 .gitignore（裁定 N2），
  * 所以 `go.mod` 在新克隆里必然不存在 —— 一次性手工 init 等于把"能构建"变成只有作者机器成立的状态。
@@ -240,16 +299,15 @@ async function initGoModuleIfMissing(): Promise<void> {
   const dir = 'generated/go';
   if (!existsSync(dir)) return;
   if (existsSync(join(dir, 'go.mod'))) return;
-  const r = spawnSync('go', ['mod', 'init', 'example.com/sl/generated'], {
+  const r = spawnSync('go', ['mod', 'init', GO_MODULE_ID], {
     cwd: dir,
     stdio: 'inherit',
-    env: { ...process.env, GOTOOLCHAIN: 'local' },
+    env: { ...process.env, ...goPathEnv(), GOTOOLCHAIN: 'local' },
   });
   if (r.error || r.status !== 0) {
     console.error(
       `go mod init 失败（${r.error ? spawnReason(r.error) : `exit ${r.status}`}）—— adapters/go 将无法解析导入。\n` +
-        '  Go 未装进系统 PATH（tools.lock.json → goInstall.notPersisted），' +
-        '请先 export PATH="/c/go/bin:/c/Users/Administrator/go/bin:$PATH"',
+        goPathHint(),
     );
     process.exit(r.status ?? 1);
   }
@@ -293,10 +351,9 @@ if (isCliEntry(import.meta.url, process.argv[1])) {
     if (r.error) {
       const hint =
         cmd.lang === 'go'
-          ? '\n  Go 工具链不写系统 PATH（tools.lock.json → goInstall.notPersisted）：' +
-            'export PATH="/c/go/bin:/c/Users/Administrator/go/bin:$PATH"'
+          ? `\n${goPathHint(pin(lock, 'oapi-codegen'))}`
           : cmd.lang === 'python'
-            ? `\n  需要先建 venv：python -m venv .venv-gen && .venv-gen/Scripts/python.exe -m pip install "openapi-python-client==${lock.generators['openapi-python-client']}"`
+            ? `\n  需要先建 venv：python -m venv .venv-gen && ${VENV_PY} -m pip install "openapi-python-client==${pin(lock, 'openapi-python-client')}"`
             : '';
       console.error(`${cmd.lang} 起不来（${spawnReason(r.error)}）—— ${cmd.argv[0]} 不可执行？${hint}`);
       invalidateProvenance();
@@ -307,7 +364,10 @@ if (isCliEntry(import.meta.url, process.argv[1])) {
       invalidateProvenance();
       process.exit(r.status ?? 1);
     }
-    if (cmd.lang === 'go') await initGoModuleIfMissing();
+    if (cmd.lang === 'go') {
+      await initGoModuleIfMissing();
+      tidyGoModule();
+    }
     const missing = await filesMissingHeader(cmd.lang);
     if (missing.length > 0) {
       console.error(

@@ -70,11 +70,14 @@ describe('genCommands', () => {
     expect(joined).toContain('--meta none');
     expect(joined).toContain('--overwrite');
     expect(c.argv.filter((a) => /^-[a-z]+$/.test(a))).toEqual(['-m']);
-    // PATH 不含 venv Scripts 时 ruff 与 post_hooks 全部静默跳过 → 头部不会落进产物
+    // PATH 不含 venv 目录时 ruff 与 post_hooks 全部静默跳过 → 头部不会落进产物。
     const pathKey = Object.keys(c.env ?? {}).find((k) => k.toUpperCase() === 'PATH');
     expect(pathKey).toBeDefined();
     const first = (c.env as Record<string, string>)[pathKey!].split(delimiter)[0].replace(/\\/g, '/');
-    expect(first).toContain('.venv-gen/Scripts');
+    // 首项必须落在 .venv-gen 的某个合法解释器目录里（POSIX 是 bin，Windows 是 Scripts）；
+    // 这里不写死 'Scripts'——那是把 Windows 语义焊进断言，Linux job 上必红却什么也没证明。
+    expect(first).toMatch(/\.venv-gen\/(Scripts|bin)$/);
+    // 下一条才是真判据：必须等于实现按平台解析出的那个目录（写死 Scripts 的实现在 Linux 上会红在这里）。
     expect(first).toBe(resolve(VENV_BIN_DIR).replace(/\\/g, '/'));
   });
 

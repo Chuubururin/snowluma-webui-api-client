@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-01T10:05:39.347Z",
-  "gitHead": "252e38ba4d6cc3a6930948705900731b839c425b",
+  "generatedAt": "2026-10-01T14:43:21.427Z",
+  "gitHead": "a069ba4cca3a463fdb27c0a3aead074145c828ad",
   "fixture": false,
   "results": [
     {
@@ -8,7 +8,7 @@
       "npmScript": "test",
       "exit": 0,
       "ok": true,
-      "tail": "✓ tools/demo-route-contract.test.ts (4 tests) 16ms / ↓ tools/demo-fixture.test.ts (5 tests | 5 skipped) / Test Files  56 passed | 3 skipped (59) / Tests  765 passed | 32 skipped (797) / Start at  18:05:25 / Duration  8.03s (tests 57%, import 26%, environment 11%, transform 5%, worker 1%) / Isolate  59 workers spawned ·"
+      "tail": "✓ adapters/typescript/live.test.ts (10 tests | 9 skipped) 4ms / ↓ tools/demo-fixture.test.ts (5 tests | 5 skipped) / Test Files  64 passed | 3 skipped (67) / Tests  829 passed | 32 skipped (861) / Start at  22:43:07 / Duration  8.22s (tests 58%, import 26%, environment 10%, transform 5%, worker 1%) / Isolate  67 worker"
     },
     {
       "id": "validate",
@@ -57,14 +57,14 @@
       "npmScript": "test:py-adapter",
       "exit": 0,
       "ok": true,
-      "tail": "........................ / ---------------------------------------------------------------------- / Ran 24 tests in 0.002s / OK / . / ---------------------------------------------------------------------- / Ran 1 test in 0.001s / OK"
+      "tail": ". / ---------------------------------------------------------------------- / Ran 1 test in 0.001s / OK / .... / ---------------------------------------------------------------------- / Ran 4 tests in 0.004s / OK"
     },
     {
       "id": "test:go-adapter",
       "npmScript": "test:go-adapter",
       "exit": 0,
       "ok": true,
-      "tail": "> test:go-adapter / > tsx tools/run-go-test.ts / ok  \texample.com/sl/adapters\t(cached)"
+      "tail": "> test:go-adapter / > tsx tools/run-go-test.ts / 按 tools.lock.json 前置 Go 工具链目录：C:\\go\\bin / ok  \texample.com/sl/adapters\t(cached)"
     }
   ]
 }

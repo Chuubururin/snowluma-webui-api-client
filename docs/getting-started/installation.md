@@ -1,10 +1,23 @@
 # 安装
 
-把一台新机器的工具链引导到「九条门禁都能跑」的状态。
+把一台新机器的工具链引导到「`npm run verify:all` 的离线门禁全链都能跑」的状态
+（清单与条数以 `docs/reference/gates.md` 和该命令的输出为准，本文不抄数字）。
 
 > [!WARNING]
 > 工具链版本以 [`tools.lock.json`](../../tools.lock.json) 为准，**不要凭记忆补版本号**——
 > 锁里缺哪项，哪项就报错拒跑。
+
+## 支持面（三个状态，各由什么证明）
+
+| 平台 | 状态 | 由什么证明 |
+| --- | --- | --- |
+| Windows x64 | 已验证 | `verify.yml` 的 `verify` job（长期在跑） |
+| Linux x64 | 已验证一次 | `verify.yml` 的 `verify-posix` job：全部离线门禁 + `gen:check` + 两条出口闸都在 ubuntu 上跑通过一次（首航第一次是红的，红在出口闸的 TS 腿，修完才绿——见 `docs/concepts/release-consumer-readiness.md` 第 1 节） |
+| macOS | 未验证 | 无 CI job。未验证 ≠ 不支持，但**不要按支持面排期**；撞到实际问题再进 `RoadMap.md` 待认领表并附实测证据 |
+
+依赖里唯一按平台分叉的是 venv 解释器目录（`Scripts` / `bin`）与 `go` / `go.exe`，
+两处都由单源给出（`tools/gen/run.ts` 的 `VENV_BIN_DIR`、`tools/lib/go-toolchain.ts`）。
+CI 因此不需要为某个 OS 另写一份命令，也不该在 workflow 里手写 venv 路径。
 
 ## 前置
 
@@ -15,9 +28,10 @@
 | Go | 1.27.1 | 适配器与 oapi-codegen |
 | Git | 任意新版 | 多条门禁直接 `git ls-files`/`git status` 取事实 |
 
-Windows 说明：仓库按「开发机 = Windows + Git Bash」写成，`generate` 的脚本路径带
-`\`（`.venv-gen\Scripts\python.exe`），POSIX 上需按 `.venv-gen/bin/python` 对应替换。
-CI 因此固定跑 `windows-latest`。
+> [!NOTE]
+> Linux 上常见只有 `python3` 而没有 `python`：`npm run venv:bootstrap` 两个名字都会试，
+> 但 `npm run test:py-adapter` 这类脚本调的是字面量 `python`（CI 的 setup-python 会提供它）。
+> 本机 Linux 跑适配器腿前先确认 `python` 在 PATH 上（ Debian/Ubuntu 可装 `python-is-python3`）。
 
 ## 步骤
 
@@ -30,34 +44,43 @@ npm ci
 ### 2. Python 生成环境（venv）
 
 ```bash
-python -m venv .venv-gen
-.venv-gen/Scripts/python -m pip install "openapi-python-client==0.29.1"
+npm run venv:bootstrap
 ```
+
+一条命令建 `.venv-gen` 并装 `openapi-python-client`：版本从 `tools.lock.json` 读，
+解释器目录按平台解析（Windows `Scripts` / POSIX `bin`），系统解释器名 `python` 与 `python3`
+都会试。别在 package.json 或 workflow 里另写 `pip install openapi-python-client==<某版本>`——
+那会把锁变成一份需要人肉同步的第二真相。
 
 > [!NOTE]
 > `.venv-gen` 不入库。为什么必须走 venv 而不是系统 python：openapi-python-client 的
-> post_hook（给产物补许可头）经 shell 执行，venv 的 Scripts 不在 PATH 上时 ruff 与 hook
+> post_hook（给产物补许可头）经 shell 执行，venv 的 Scripts/bin 不在 PATH 上时 ruff 与 hook
 > 会**静默跳过**、exit 仍是 0——头部消失而生成"成功"。`tools/gen/run.ts` 会把 venv 前置进
 > 子进程 PATH 再跑，这是唯一正确姿势。
 
 ### 3. Go 工具链
 
-本机（Windows）按 `tools.lock.json → goInstall`：官方 zip 解压到 `C:\go`，
+本机（Windows）按 `tools.lock.json → goInstall`：官方 zip 解压到锁记的 GOROOT，
 **不写系统 PATH、不动注册表**。因此每个新终端要么自行
 
 ```bash
-export PATH="/c/go/bin:$PATH"
+export PATH="<GOROOT>/bin:<GOPATH>/bin:$PATH"   # 两个目录都从 tools.lock.json / go env 推导
 ```
 
-要么什么都不做——`npm run test:go-adapter` 的启动器会读锁里的 GOROOT 兜底。
-找不到 go 时它带指引退 1，**绝不静默 skip**。
+要么什么都不做——`npm run generate` 的 Go 腿与 `npm run test:go-adapter` 的启动器都会读锁里的
+GOROOT、再补 `<GOPATH>/bin`（`go install` 的落点，oapi-codegen 在那里）前置进子进程 PATH。
+找不到时它们带推导出来的目录退 1，**绝不静默 skip、也不写死某台机器的路径**。
 
 ### 4. oapi-codegen
 
 ```bash
-go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.8.0
-# 确认 <GOPATH>/bin 在 PATH 上
+npm run oapi:install
 ```
+
+版本从 `tools.lock.json → generators["oapi-codegen"]` 读；锁里没有这项就报错拒跑，
+不凭记忆补版本号。装完不需要动 PATH：`go install` 的落点由 `go env GOPATH` 推导，
+第 3 步说的兜底会把两个目录一起前置进子进程 PATH。CI 用的是同一条脚本，
+所以 workflow 里没有第二份版本号可漂（`tools/workflow-pins.test.ts` 执法）。
 
 ### 5. 上游源码缓存（vendor/upstream/）
 
@@ -79,12 +102,16 @@ npm run generate
 TypeScript（hey-api 0.99.0 + peer typescript 5.9.3，硬约束）、Python（openapi-python-client
 0.29.1）、Go（oapi-codegen v2.8.0）三段依次执行，每段成功后校验产物每个文件前 5 行
 含许可横幅（三家都会静默丢横幅，这一步是全管线唯一的横幅执法点）。
+Go 段之后还会 `go mod init` + `go mod tidy`：init 只写 module 声明，require 清单与 `go.sum`
+要 tidy 才长出来 —— 冷克隆实测过少了这一步时 `generated/go` 是个"没有依赖清单的模块"，
+仓内测试照样绿（adapters/go 的 go.mod 替它兜着），一装到消费者机器就只剩 missing go.sum entry。
+tidy 需要 module 缓存里有 `github.com/oapi-codegen/runtime`，离线机器第一次要联网。
 产物落 `generated/`（不入库），并写血统收据 `generated/.provenance.json`。
 
 ## 验证装好了
 
 ```bash
-npm run verify:all        # 9 条离线门禁
+npm run verify:all        # 全部离线门禁，条数以这条命令自己的输出为准
 npx vitest run            # 只要测试面
 ```
 
