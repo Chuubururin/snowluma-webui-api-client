@@ -278,6 +278,16 @@ export function buildStagingPlan(ctx: { version: string; anchor: string }, root 
   }
   // go.mod / go.sum 直接沿用生成物自己的那份（依赖清单的真源在生成器，不在这里）：
   // 它不含 replace，而 adapters/go/go.mod 的 replace 正是带不出仓的那一条，故意不采纳。
+  // 缺任何一件都点名拒收，不留裸 ENOENT —— 冷克隆实测就是缺 go.sum（`go mod init` 不写它），
+  // 那种工件装到消费者机器上只会报 missing go.sum entry，而源码树里一切正常。
+  const absentGoModule = missingGoModuleFiles('generated/go');
+  if (absentGoModule.length) {
+    throw new Error(
+      `buildStagingPlan 缺 Go 模块面：${absentGoModule.map((f) => `generated/go/${f}`).join('、')} —— ` +
+        '没有依赖清单的模块出了仓就是装不上的模块。\n' +
+        '  恢复动作：npm run generate（Go 腿会 go mod init + go mod tidy 把两件补齐）。',
+    );
+  }
   files[`${ARTIFACT_DIRS.go}/go.mod`] = { content: readFileSync('generated/go/go.mod', 'utf8') };
   files[`${ARTIFACT_DIRS.go}/go.sum`] = { content: readFileSync('generated/go/go.sum', 'utf8') };
   files[`${ARTIFACT_DIRS.go}/rules.json`] = { copyFrom: 'adapters/rules.json' };
@@ -297,6 +307,14 @@ export function buildStagingPlan(ctx: { version: string; anchor: string }, root 
 /** 三个生成面目录里缺席的那几个（供打包器与本文件的自测用）。 */
 export function missingGeneratedDirs(cwd: string = '.'): string[] {
   return ['generated/typescript', 'generated/python', 'generated/go'].filter((d) => !existsSync(join(cwd, d)));
+}
+
+/**
+ * Go 模块面缺的那几件。`go mod init` 只写 module 声明，go.sum 要 tidy 才存在，
+ * 所以"目录在"不代表"模块装得上"—— 这一面必须单独查。
+ */
+export function missingGoModuleFiles(goDir: string = 'generated/go'): string[] {
+  return ['go.mod', 'go.sum'].filter((f) => !existsSync(join(goDir, f)));
 }
 export function missingPrerequisites(plan: StagePlan): string[] {
   return plan.prerequisites.filter((p) => !existsSync(p));

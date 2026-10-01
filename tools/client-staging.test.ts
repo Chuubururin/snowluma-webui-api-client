@@ -4,10 +4,12 @@
  * 真装真解析真跑归 tools/smoke-clients.ts —— 分开是为了让"漏一个文件""版本号没跟上"
  * 这类失效在秒级现形，而不是等到装包那条慢链上才红。
  */
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { describe, expect, it } from 'vitest';
-import { GO_MODULE_ID, PY_PACKAGE, TS_PACKAGE_NAME, buildStagingPlan, missingGeneratedDirs, requiredFiles } from './lib/client-staging.js';
+import { GO_MODULE_ID, PY_PACKAGE, TS_PACKAGE_NAME, buildStagingPlan, missingGeneratedDirs, missingGoModuleFiles, requiredFiles } from './lib/client-staging.js';
 import { OK_TOKEN } from './lib/client-templates.js';
 
 const V = (parseYaml(readFileSync('spec/openapi.yaml', 'utf8')) as { info: { version: string } }).info.version;
@@ -142,6 +144,17 @@ describe('staging 布局', () => {
     ]);
     // 本仓跑到这里必然三个都在：不在的话上面所有断言都会以 ENOENT 崩，而不是给出恢复动作。
     expect(missingGeneratedDirs()).toEqual([]);
+  });
+
+  it('Go 模块面缺件时逐件点名（冷克隆实测：init 写了 go.mod，go.sum 压根不存在）', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'sl-go-module-'));
+    expect(missingGoModuleFiles(tmp)).toEqual(['go.mod', 'go.sum']);
+    writeFileSync(join(tmp, 'go.mod'), 'module example.com/x\n');
+    expect(missingGoModuleFiles(tmp), '只有 go.mod 时仍要报缺 go.sum').toEqual(['go.sum']);
+    writeFileSync(join(tmp, 'go.sum'), '');
+    expect(missingGoModuleFiles(tmp)).toEqual([]);
+    // 本仓这一面必须齐：不齐的话上面所有断言读到的模块清单都是空气。
+    expect(missingGoModuleFiles()).toEqual([]);
   });
 
   it('搬运项指向真实存在的源目录（拼错一个目录名，计划绿而工件缺件）', () => {

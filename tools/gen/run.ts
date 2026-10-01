@@ -264,6 +264,33 @@ function invalidateProvenance(): void {
 }
 
 /**
+ * init 只写出 module 声明；require 清单与 go.sum 要 tidy 才长出来。
+ * 冷克隆实测抓到：新克隆的 generated/go 是一个"没有依赖清单的模块"，仓内 `go test ./...`
+ * 却仍绿 —— 因为 adapters/go 的 go.mod 替它把 indirect 依赖都列全了。那份兜底一出仓就没了：
+ * 出口工件以 generated/go 为 module 真源，消费者拿到的第一个构建就是 missing go.sum entry。
+ */
+function tidyGoModule(): void {
+  const dir = 'generated/go';
+  if (!existsSync(join(dir, 'go.mod'))) return;
+  const r = spawnSync('go', ['mod', 'tidy'], {
+    cwd: dir,
+    stdio: 'inherit',
+    env: { ...process.env, ...goPathEnv(), GOTOOLCHAIN: 'local' },
+  });
+  if (r.error || r.status !== 0) {
+    console.error(
+      `go mod tidy 失败（${r.error ? spawnReason(r.error) : `exit ${r.status}`}）—— ` +
+        'generated/go 的依赖清单不完整，出口工件会带一个装不上的模块。\n' +
+        goPathHint() +
+        '\n  tidy 需要 module 缓存里有生成物 import 的运行时包（github.com/oapi-codegen/runtime）；' +
+        '离线机器上先联网跑一次，或恢复 GOMODCACHE 再重试。',
+    );
+    invalidateProvenance();
+    process.exit(r.status ?? 1);
+  }
+}
+
+/**
  * 生成目录必须是 Go 模块，否则 adapters/go 无法 import 它。
  * 为什么由脚本而不是人工做：`generated/` 已在 .gitignore（裁定 N2），
  * 所以 `go.mod` 在新克隆里必然不存在 —— 一次性手工 init 等于把"能构建"变成只有作者机器成立的状态。
@@ -337,7 +364,10 @@ if (isCliEntry(import.meta.url, process.argv[1])) {
       invalidateProvenance();
       process.exit(r.status ?? 1);
     }
-    if (cmd.lang === 'go') await initGoModuleIfMissing();
+    if (cmd.lang === 'go') {
+      await initGoModuleIfMissing();
+      tidyGoModule();
+    }
     const missing = await filesMissingHeader(cmd.lang);
     if (missing.length > 0) {
       console.error(

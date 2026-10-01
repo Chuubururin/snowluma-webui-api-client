@@ -100,6 +100,10 @@ npm run generate
 TypeScript（hey-api 0.99.0 + peer typescript 5.9.3，硬约束）、Python（openapi-python-client
 0.29.1）、Go（oapi-codegen v2.8.0）三段依次执行，每段成功后校验产物每个文件前 5 行
 含许可横幅（三家都会静默丢横幅，这一步是全管线唯一的横幅执法点）。
+Go 段之后还会 `go mod init` + `go mod tidy`：init 只写 module 声明，require 清单与 `go.sum`
+要 tidy 才长出来 —— 冷克隆实测过少了这一步时 `generated/go` 是个"没有依赖清单的模块"，
+仓内测试照样绿（adapters/go 的 go.mod 替它兜着），一装到消费者机器就只剩 missing go.sum entry。
+tidy 需要 module 缓存里有 `github.com/oapi-codegen/runtime`，离线机器第一次要联网。
 产物落 `generated/`（不入库），并写血统收据 `generated/.provenance.json`。
 
 ## 验证装好了

@@ -9,7 +9,7 @@
 
 这条不是修辞。下面每一条都是实测出来的，且都躲在"全绿"后面。
 
-## 1. 被抓到的四处出口缺陷
+## 1. 被抓到的七处出口缺陷
 
 | 缺陷 | 位置 | 为什么既有门禁看不见 |
 | --- | --- | --- |
@@ -17,12 +17,19 @@
 | TS 适配层的 spec 路径是 CWD 相对字面量 | `adapters/typescript/operations.ts` | 所有测试与门禁都跑在仓根，CWD 永远是仓根 |
 | Python 规则表默认按目录深度解析 | `adapters/python/snowluma_adapter.py` | 同上：装包后布局深度变了，仓内不会 |
 | Go 适配器靠 `replace … => ../../generated/go` 解析 | `adapters/go/go.mod` | 该 replace 在本仓布局里永远正确 |
+| 干净克隆里 `npm run generate` 的 Go 腿 ENOENT，而它印的"恢复动作"写死作者机器路径 | `tools/gen/run.ts`、`tools/lib/go-toolchain.ts` | 开发终端早年 export 过 PATH；`test:go-adapter` 只借 GOROOT，`oapi-codegen` 其实落在 `<GOPATH>/bin` |
+| 新克隆的 `generated/go` 没有 `go.sum`（`go mod init` 不写它） | `tools/gen/run.ts` 的模块初始化 | `adapters/go/go.mod` 把 indirect 依赖全列了 ⇒ 仓内构建替生成模块兜底；工件以生成模块为真源，一装就 missing go.sum entry |
+| TS 适配层按"运行时文件的上一级"读规则表，装包后无处可读 | `adapters/typescript/rules.ts` 的默认解析 | 仓内那份表永远在 `adapters/` 上一级 ⇒ 每次测试都命中，走出仓就 ENOENT |
 
-前三条已修（改成按模块自身位置解析、包内 sibling 优先）。第四条不是"修 replace"，
-而是**合并成同一个 module 让它消失**。
+前四条已修（改成按模块自身位置解析、包内 sibling 优先；第四条不是"修 replace"，而是
+**合并成同一个 module 让它消失**）。后两条是**冷克隆实测**抓到的——把它们单列出来是因为
+它们不在"交付物内容"里，而在"交付物怎么被生产出来"里：只有在一次干净克隆按
+[installation.md](../getting-started/installation.md) 逐步重跑时才现形。
+现在的处置：Go 腿自己按 `tools.lock.json` + `go env GOPATH` 推导工具链并前置进子进程 PATH，
+提示只印推导结果或安装动作；生成后 `go mod tidy` 补 require 与 `go.sum`，
+打包器缺任一件都点名拒收，不再留裸 ENOENT。
 
-另有一条不在原计划里、由出口闸第一次真跑抓到：TS 适配层按"运行时文件的上一级"读规则表，
-装包后消费者把自己那份示例打到哪里无法预知 ⇒ ENOENT。处置是打包期内嵌规则表
+第七条不在原计划里，是出口闸第一次真跑抓到的。处置是打包期内嵌规则表
 （真源仍是 `adapters/rules.json`，内嵌副本按 `RulesTable` 受 tsc 检，相等性有断言钉住），
 按盘读表那一条另名 `createDiskClient` 保留。
 
@@ -143,10 +150,17 @@ workflow 的 venv 引导收进 `npm run venv:bootstrap`（版本从 `tools.lock.
 | --- | --- | --- |
 | `tools/contract-version.test.ts` | vitest（在 `test` 门禁内） | `info.version` 非三段 semver；描述里重新长出计数或阶段自述 |
 | `tools/adapter-path-resolution.test.ts` | vitest | 适配层换 CWD 就读不到 spec；显式入参被废 |
-| `tools/client-staging.test.ts` | vitest | 工件缺件、metadata 版本与契约不符、嵌套 `go.mod`、内嵌表与真源不等、声明的入口拼错 |
+| `tools/client-staging.test.ts` | vitest | 工件缺件、metadata 版本与契约不符、嵌套 `go.mod`、缺 `go.mod`/`go.sum` 时不点名拒收、内嵌表与真源不等、声明的入口拼错 |
 | `tools/client-templates.test.ts` | vitest | README 散文与示例不同源、验收标记只存在于内嵌代码块、Python 两层抽象被混写 |
+| `tools/go-toolchain.test.ts` | vitest | 推导出的目录不存在、Go 腿没前置同一份推导结果（出现第二条认知）、PATH 键名被写成第二份、报错文本里出现具体机器路径 |
 | `tools/docs-index.test.ts` | vitest | 文档无人导航、相对链接死、`npm run` 指向不存在的脚本 |
 | `npm run smoke:clients` | 独立脚本（Release 前置闸 + CI） | 上面第 5 节的三层 |
+
+这些都在源码树的门禁里，而源码树永远在作者机器上。**收尾判据因此多一条不属于任何门禁的**：
+把分支克隆进干净目录，按 `docs/getting-started/installation.md` 逐步重跑
+（`npm ci` → `venv:bootstrap` → `fetch:upstream` → `generate` → `verify:all` →
+`package:clients` → `smoke:clients`）。本轮就是这么跑出上面第 5、6 两条缺陷的——
+它们在开发目录里都是绿的。它不能自动化，因为"冷"的前提是没有既有缓存与既有终端设置。
 
 为什么不把前三类再包成独立 GATES 条目：每条 GATES 都是一个独立 `npm run` 子进程，
 而跨面钉类断言在本仓的先例是 vitest（`workspace.test.ts`、`verify-all.test.ts`）。
