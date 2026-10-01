@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-01T14:43:21.427Z",
-  "gitHead": "a069ba4cca3a463fdb27c0a3aead074145c828ad",
+  "generatedAt": "2026-10-01T15:46:41.572Z",
+  "gitHead": "69ff31d91a2f9c3ed7365f571c18539aa244f2e6",
   "fixture": false,
   "results": [
     {
@@ -8,7 +8,7 @@
       "npmScript": "test",
       "exit": 0,
       "ok": true,
-      "tail": "✓ adapters/typescript/live.test.ts (10 tests | 9 skipped) 4ms / ↓ tools/demo-fixture.test.ts (5 tests | 5 skipped) / Test Files  64 passed | 3 skipped (67) / Tests  829 passed | 32 skipped (861) / Start at  22:43:07 / Duration  8.22s (tests 58%, import 26%, environment 10%, transform 5%, worker 1%) / Isolate  67 worker"
+      "tail": "✓ adapters/typescript/live.test.ts (10 tests | 9 skipped) 5ms / ↓ tools/demo-fixture.test.ts (5 tests | 5 skipped) / Test Files  64 passed | 3 skipped (67) / Tests  830 passed | 32 skipped (862) / Start at  23:46:28 / Duration  8.07s (tests 58%, import 26%, environment 11%, transform 4%, worker 1%) / Isolate  67 worker"
     },
     {
       "id": "validate",
@@ -57,7 +57,7 @@
       "npmScript": "test:py-adapter",
       "exit": 0,
       "ok": true,
-      "tail": ". / ---------------------------------------------------------------------- / Ran 1 test in 0.001s / OK / .... / ---------------------------------------------------------------------- / Ran 4 tests in 0.004s / OK"
+      "tail": ". / ---------------------------------------------------------------------- / Ran 1 test in 0.001s / OK / .... / ---------------------------------------------------------------------- / Ran 4 tests in 0.003s / OK"
     },
     {
       "id": "test:go-adapter",

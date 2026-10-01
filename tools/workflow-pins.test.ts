@@ -89,6 +89,24 @@ describe('CI 的单一出处', () => {
     }
   });
 
+  it('建目录的行必须可重入（New-Item 不带 -Force 会让"前一步已经建过"直接红）', () => {
+    /**
+     * GitHub 的 pwsh 包装会在脚本前置 `$ErrorActionPreference = 'stop'`，
+     * 于是 New-Item 对已存在目录那条**非终止**错误被升级成终止错误，整步 exit 1。
+     * 这条在本地跑不出来：`dist/` 是 release job 里前一步 `package:clients`
+     * （它的 ARTIFACT_ROOT 是 `dist/clients`）建出来的，开发机上没人重放这条 job。
+     */
+    const offenders: string[] = [];
+    for (const [f, text] of Object.entries(workflows)) {
+      for (const line of codeOnly(text).split(/\r?\n/)) {
+        if (/New-Item\b.*-ItemType\s+Directory\b/i.test(line) && !/-Force\b/i.test(line)) {
+          offenders.push(`${f}: ${line.trim()}`);
+        }
+      }
+    }
+    expect(offenders, `建目录不可重入，撞上前一步产物就红：${offenders.join(' | ')}`).toEqual([]);
+  });
+
   it('verify 与 verify-posix 的步骤序列逐条相等（两条 job 存在只因 required check 名叫 verify）', () => {
     const doc = parsed['verify.yml'];
     const win = runSequence(doc.jobs.verify);

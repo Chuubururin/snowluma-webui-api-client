@@ -29,6 +29,13 @@ Windows 是主链（长期在跑）；`verify-posix` 是 Linux 的闸，**已跑
 所以本机永远看不出来），修完才绿。这一格的历史就是这条 job 的价值：没有它，"POSIX 也能跑"
 会一直是一句没闸的断言。两条 job 的 `run:` 序列现在由 `tools/workflow-pins.test.ts` 钉成逐条相等。
 
+release job 的脚本面也能本地重放，不必等 CI：`npm run package:clients` 落好 staging 之后，
+照原样从 YAML 取出 `id: pack` 那步的 `run` 存成 `.ps1` 直接跑——用的字节与工作流一致。
+这一步值两处：一是复现"前一步已经把 `dist/` 建出来了"这类只有按顺序组合步骤才现形的碰撞
+（合入后那次 CI 红就是这一类，红在建目录行，`Release 正文`与`创建 Release`随之 skip，没有半成品出厂）；
+二是把修完之后**剩下的行**一起验掉——只改那一行就宣布修好，等于把结论建立在没跑过的假设上。
+可重入性要跑两遍看 exit 码，一遍不算。
+
 `verify-posix` 加出来之前先在 WSL Ubuntu 实测过，抓到两条把 Windows 路径语义焊死在断言里的既有测试
 （venv 目录名字面量、`C:\repo\...` 当绝对路径）——这类失效在 Windows-only 的链上是永久不可见的。
 本机可验的面：`fetch:upstream` 可用；补上 `generated/typescript` 后全量 vitest 789 passed / 0 断言失败，

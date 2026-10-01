@@ -89,7 +89,11 @@ jobs:
           $tag = "clients-$contract-$($anchor.Substring(0,7))-$((Get-Date).ToUniversalTime().ToString('yyyyMMddHHmmss'))"
           "tag=$tag" >> $env:GITHUB_OUTPUT
           "contract=$contract" >> $env:GITHUB_OUTPUT
-          New-Item -ItemType Directory dist | Out-Null
+          # -Force 不是风格问题：dist/ 已经由上一步 package:clients 建出来了（它的落盘根是
+          # dist/clients），而 pwsh 包装脚本前置 $ErrorActionPreference='stop'，把 New-Item
+          # 对已存在目录的非终止错误升级成终止错误 —— 没有 -Force 这一步就 exit 1，
+          # 后面的 Release 全部 skip（fail-closed 正确，但工件发不出去）。
+          New-Item -ItemType Directory -Force dist | Out-Null
           # 打的是 staging 合包（生成码 + 行为适配层 + 规则表 + README + 示例 + metadata），
           # 不是裸 generated/：适配层出不了仓，等于把本项目那一层最关键的产物留在仓里发半成品。
           tar -czf "dist/snowluma-clients-typescript-$tag.tar.gz" -C dist/clients typescript
