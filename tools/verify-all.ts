@@ -93,7 +93,11 @@ export const GATES: Gate[] = [
   {
     id: 'test:py-adapter',
     npmScript: 'test:py-adapter',
-    runs: ['adapters/python/snowluma_adapter.py', 'adapters/golden/cases.json'],
+    runs: [
+      'adapters/python/snowluma_adapter.py',
+      'adapters/python/test_rules_resolution.py',
+      'adapters/golden/cases.json',
+    ],
     proves: 'Python 适配器的 bootstrap 门控/401 分治/destructive 闸/规则表与 TS 语义同形（golden 夹具同源）',
   },
   {

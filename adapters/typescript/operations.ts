@@ -4,6 +4,8 @@
  * 供控制台（demo/dashboard.ts）与独立验证编排器（tools/verify-all.ts）共用。
  */
 import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
 
 export interface OpEntry {
@@ -28,7 +30,12 @@ export const OP_NOTES: Record<string, string> = {
   changePassword: '成功路径刻意不在生产实例执行（凭据变更风险）；错误分支已验证',
 };
 
-const SPEC_PATH = 'spec/openapi.yaml';
+/**
+ * 仓根 spec：从本模块位置反推。不用 CWD 相对字面量 —— 出仓消费（工件装在别处）与
+ * CI 的工作目录都不保证是仓根，而那种 ENOENT 在源码树的全部门禁里永远看不见。
+ * 写法与 adapters/typescript/live.test.ts 的既有解析同形。
+ */
+const REPO_SPEC = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'spec', 'openapi.yaml');
 
 interface SpecShape {
   paths: Record<string, Record<string, { operationId?: string; 'x-replay-class'?: string; summary?: string }>>;
@@ -36,7 +43,7 @@ interface SpecShape {
 }
 
 export function loadSpec(specPath?: string): SpecShape {
-  return parseYaml(readFileSync(specPath ?? SPEC_PATH, 'utf8')) as SpecShape;
+  return parseYaml(readFileSync(specPath ?? REPO_SPEC, 'utf8')) as SpecShape;
 }
 
 /** 从 spec 构建全部操作清单（55 条）。 */

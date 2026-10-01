@@ -23,7 +23,20 @@ import re
 from pathlib import Path
 from typing import Any, Callable
 
-_DEFAULT_RULES = Path(__file__).resolve().parents[1] / "rules.json"
+def resolve_rules_path(here: Path) -> Path:
+    """两个真实布局各一条，不加第三种回落（自定义规则表走 load_rules(path) 的显式入参）：
+
+    - 装包后：`rules.json` 与本文件同目录（包内 sibling）—— 工件里的默认路径靠这条成立；
+    - 仓 内 ：`adapters/rules.json`，在本文件的上一级（三语共用一张表）。
+
+    写成接受 `here` 的纯函数而不是直接读 `__file__`：否则要验"包内优先"只能靠模块重载，
+    测的就不是判据而是 sys.path 杂技。
+    """
+    sibling = here / "rules.json"
+    return sibling if sibling.exists() else here.parent / "rules.json"
+
+
+_DEFAULT_RULES = resolve_rules_path(Path(__file__).resolve().parent)
 
 SAFE_METHODS = {"GET", "HEAD"}
 NO_AUTO_REPLAY_PATHS = {"/api/update/check"}
