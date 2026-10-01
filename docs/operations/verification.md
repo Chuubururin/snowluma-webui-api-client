@@ -23,8 +23,11 @@ main 受 branch protection：`verify` 检查（context 实测名，不带 OS 后
 
 **两条 job 而不是复制清单**：门禁清单只住在 `tools/verify-all.ts` 的 `GATES` 里，
 两个 job 都只调 `npm run verify:all`，所以新增一条门禁不会出现"只进了一个 OS"的分叉。
-Windows 是主链（长期在跑）；`verify-posix` 是 Linux 的闸，**它首航跑绿之前 Linux 属"有闸尚无通过记录"**，
-不许提前写成已支持（口径见 [release-consumer-readiness.md](../concepts/release-consumer-readiness.md) 的支持面表）。
+Windows 是主链（长期在跑）；`verify-posix` 是 Linux 的闸，**已跑绿一次**：全部离线门禁 + `gen:check`
++ 两条出口闸都在 ubuntu 上过。要记的是它**第一次首航是红的**——红在出口闸 TS 腿把
+`node_modules/esbuild/bin/esbuild` 交给 node 执行（Linux 上那是原生二进制，Windows 上是 JS shim，
+所以本机永远看不出来），修完才绿。这一格的历史就是这条 job 的价值：没有它，"POSIX 也能跑"
+会一直是一句没闸的断言。两条 job 的 `run:` 序列现在由 `tools/workflow-pins.test.ts` 钉成逐条相等。
 
 `verify-posix` 加出来之前先在 WSL Ubuntu 实测过，抓到两条把 Windows 路径语义焊死在断言里的既有测试
 （venv 目录名字面量、`C:\repo\...` 当绝对路径）——这类失效在 Windows-only 的链上是永久不可见的。

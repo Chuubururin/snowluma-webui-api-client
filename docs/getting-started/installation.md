@@ -12,7 +12,7 @@
 | 平台 | 状态 | 由什么证明 |
 | --- | --- | --- |
 | Windows x64 | 已验证 | `verify.yml` 的 `verify` job（长期在跑） |
-| Linux x64 | 有闸，尚无通过记录 | `verify.yml` 的 `verify-posix` job；它首航跑绿之前，本页不许写"Linux 已支持" |
+| Linux x64 | 已验证一次 | `verify.yml` 的 `verify-posix` job：全部离线门禁 + `gen:check` + 两条出口闸都在 ubuntu 上跑通过一次（首航第一次是红的，红在出口闸的 TS 腿，修完才绿——见 `docs/concepts/release-consumer-readiness.md` 第 1 节） |
 | macOS | 未验证 | 无 CI job。未验证 ≠ 不支持，但**不要按支持面排期**；撞到实际问题再进 `RoadMap.md` 待认领表并附实测证据 |
 
 依赖里唯一按平台分叉的是 venv 解释器目录（`Scripts` / `bin`）与 `go` / `go.exe`，

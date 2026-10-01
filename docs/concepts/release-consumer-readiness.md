@@ -152,7 +152,7 @@ UTC 时刻只承担防重复发布的职责，不表达版本语义；上游锚�
 | 平台 | 状态 | 由什么证明 |
 | --- | --- | --- |
 | Windows x64 | 已验证 | `verify` job 长期在跑 |
-| Linux x64 | 有闸，尚无通过记录 | `verify-posix` job；首航跑绿前本页不许写"Linux 已支持" |
+| Linux x64 | 已验证一次 | `verify-posix` 首航通过：全部离线门禁 + `gen:check` + `package:clients` + `smoke:clients` 三层。同一 PR 的第一次首航是**红的**，红在出口闸 TS 腿（见第 1 节第 9 条）——修完才绿，所以这一格现在的证据是"修后那次运行"，不是"闸建好了" |
 | macOS | 未验证 | 无 job。未验证 ≠ 不支持，但不要按支持面排期 |
 
 本机 WSL Ubuntu 实测到的事实（不是推断）：`fetch:upstream` 可用；补上 `generated/typescript` 后
