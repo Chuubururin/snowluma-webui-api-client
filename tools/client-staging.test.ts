@@ -7,7 +7,7 @@
 import { readFileSync } from 'node:fs';
 import { parse as parseYaml } from 'yaml';
 import { describe, expect, it } from 'vitest';
-import { GO_MODULE_ID, PY_PACKAGE, TS_PACKAGE_NAME, buildStagingPlan, requiredFiles } from './lib/client-staging.js';
+import { GO_MODULE_ID, PY_PACKAGE, TS_PACKAGE_NAME, buildStagingPlan, missingGeneratedDirs, requiredFiles } from './lib/client-staging.js';
 import { OK_TOKEN } from './lib/client-templates.js';
 
 const V = (parseYaml(readFileSync('spec/openapi.yaml', 'utf8')) as { info: { version: string } }).info.version;
@@ -132,6 +132,16 @@ describe('staging 布局', () => {
     }
     expect(contentOf('typescript/README.md')).toContain(TS_PACKAGE_NAME);
     expect(contentOf('typescript/README.md')).toContain(V);
+  });
+
+  it('缺输入面时点名三个生成目录（Linux 冷克隆实测的是裸 ENOENT，那不是可执行的红）', () => {
+    expect(missingGeneratedDirs('/definitely-not-a-repo')).toEqual([
+      'generated/typescript',
+      'generated/python',
+      'generated/go',
+    ]);
+    // 本仓跑到这里必然三个都在：不在的话上面所有断言都会以 ENOENT 崩，而不是给出恢复动作。
+    expect(missingGeneratedDirs()).toEqual([]);
   });
 
   it('搬运项指向真实存在的源目录（拼错一个目录名，计划绿而工件缺件）', () => {

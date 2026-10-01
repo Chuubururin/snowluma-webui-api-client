@@ -221,6 +221,15 @@ export function createClient(
 }
 
 export function buildStagingPlan(ctx: { version: string; anchor: string }, root = 'dist/clients'): StagePlan {
+  // 三个输入面缺一就点名拒绝，不留裸 ENOENT：静默少搬一半比红得难看更糟 —— 它会交出
+  // 一个"看起来完整"的工件目录。恢复动作照门禁原话给，不让人猜。
+  const absent = missingGeneratedDirs();
+  if (absent.length) {
+    throw new Error(
+      `buildStagingPlan 缺输入面：${absent.join(', ')} —— 不要用旧产物冒充新产物。\n` +
+        '  恢复动作：npm run generate（本机首次还需 npm run fetch:upstream 与 venv/go 工具链，见 docs/getting-started/installation.md）。',
+    );
+  }
   const files: Record<string, FilePlan> = {};
 
   // ---- TypeScript ----
@@ -285,7 +294,10 @@ export function buildStagingPlan(ctx: { version: string; anchor: string }, root 
   };
 }
 
-/** 落盘前的存在性核对：缺源即点名退出，绝不用旧产物冒充新产物。 */
+/** 三个生成面目录里缺席的那几个（供打包器与本文件的自测用）。 */
+export function missingGeneratedDirs(cwd: string = '.'): string[] {
+  return ['generated/typescript', 'generated/python', 'generated/go'].filter((d) => !existsSync(join(cwd, d)));
+}
 export function missingPrerequisites(plan: StagePlan): string[] {
   return plan.prerequisites.filter((p) => !existsSync(p));
 }
