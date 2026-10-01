@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-01T11:44:42.046Z",
-  "gitHead": "ba76d778a2f51c4cf1cc699f0f9e896bca5bd4f6",
+  "generatedAt": "2026-10-01T11:52:33.686Z",
+  "gitHead": "6371e038db3428b640dd0b412450ce234ed03bf0",
   "fixture": false,
   "results": [
     {
@@ -8,7 +8,7 @@
       "npmScript": "test",
       "exit": 0,
       "ok": true,
-      "tail": "✓ adapters/typescript/live.test.ts (10 tests | 9 skipped) 4ms / ↓ tools/demo-fixture.test.ts (5 tests | 5 skipped) / Test Files  61 passed | 3 skipped (64) / Tests  805 passed | 32 skipped (837) / Start at  19:44:28 / Duration  8.39s (tests 57%, import 26%, environment 11%, transform 5%, worker 1%) / Isolate  64 worker"
+      "tail": "✓ tools/demo-route-contract.test.ts (4 tests) 24ms / ↓ tools/demo-fixture.test.ts (5 tests | 5 skipped) / Test Files  61 passed | 3 skipped (64) / Tests  805 passed | 32 skipped (837) / Start at  19:52:19 / Duration  8.29s (tests 57%, import 26%, environment 11%, transform 5%, worker 1%) / Isolate  64 workers spawned ·"
     },
     {
       "id": "validate",
@@ -57,14 +57,14 @@
       "npmScript": "test:py-adapter",
       "exit": 0,
       "ok": true,
-      "tail": ". / ---------------------------------------------------------------------- / Ran 1 test in 0.001s / OK / .... / ---------------------------------------------------------------------- / Ran 4 tests in 0.004s / OK"
+      "tail": ". / ---------------------------------------------------------------------- / Ran 1 test in 0.001s / OK / .... / ---------------------------------------------------------------------- / Ran 4 tests in 0.003s / OK"
     },
     {
       "id": "test:go-adapter",
       "npmScript": "test:go-adapter",
       "exit": 0,
       "ok": true,
-      "tail": "> test:go-adapter / > tsx tools/run-go-test.ts / ok  \texample.com/sl/adapters\t(cached)"
+      "tail": "> test:go-adapter / > tsx tools/run-go-test.ts / ok  \texample.com/sl/adapters\t(cached) / go 不在 PATH，改用 tools.lock.json 记录的 C:\\go\\bin"
     }
   ]
 }

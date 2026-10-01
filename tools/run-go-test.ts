@@ -8,13 +8,12 @@
  * PATH，然后执行字面量 `go`；两边都落空就带指引退出 1，不静默 skip —— skip 不是通过。
  */
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
 import { join, delimiter } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { gorootBinFromLock } from './lib/go-toolchain.js';
 
 const repoRoot = join(fileURLToPath(new URL('.', import.meta.url)), '..');
 const goDir = join(repoRoot, 'adapters', 'go');
-const goBin = process.platform === 'win32' ? 'go.exe' : 'go';
 
 /** 执行 go test，返回退出码。 */
 function runGoTest(extraPath?: string): number {
@@ -28,11 +27,9 @@ function runGoTest(extraPath?: string): number {
 const probe = spawnSync('go', ['version'], { encoding: 'utf8' });
 if (probe.status !== 0) {
   // PATH 里没有 go → 按 tools.lock.json → goInstall.env.GOROOT 借它的 bin。
-  const lock = JSON.parse(readFileSync(join(repoRoot, 'tools.lock.json'), 'utf8')) as {
-    goInstall?: { env?: { GOROOT?: string } };
-  };
-  const gorootBin = lock.goInstall?.env?.GOROOT ? join(lock.goInstall.env.GOROOT, 'bin') : '';
-  if (!gorootBin || !existsSync(join(gorootBin, goBin))) {
+  // 定位逻辑在 tools/lib/go-toolchain.ts（出口闸 smoke:clients 用同一份，两边不许分叉）。
+  const gorootBin = gorootBinFromLock(repoRoot);
+  if (!gorootBin) {
     console.error('go 起不来（ENOENT）—— PATH 与 tools.lock.json 记录的 GOROOT 里都没有 go。');
     console.error('  按 tools.lock.json → goInstall 装好工具链，或把 <GOROOT>/bin 加进 PATH 后重跑。');
     process.exit(1);

@@ -114,5 +114,5 @@ TypeScript / Python / Go 三个类型化 SDK、行为三语同形的统一适配
 > 文内也不再引用任何历史提交编号、日期或流水号——本仓没有可检索的历史坐标。
 
 - 55 条操作：52 effective + 3 write-only，未登记缺口 0（`npm run ui-coverage` 机器核）
-- 测试：768 用例（vitest；另有 32 条 L4 活体用例默认 skip，`--fixture` 才跑）+ Python / Go 适配器套件
+- 测试：805 用例（vitest；另有 32 条 L4 活体用例默认 skip，`--fixture` 才跑）+ Python / Go 适配器套件
 - 最新跑次：[`docs/operations/verify-all-report.json`](docs/operations/verify-all-report.json)

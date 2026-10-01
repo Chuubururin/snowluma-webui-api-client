@@ -1,13 +1,17 @@
 # 派生自 SnowLuma 源码 · 非商业自用 · 不发包管理器
 #
-# verify:all 离线主链（9 条门禁）在 CI 里强制执行——门禁链早已全自动，缺的从来是
+# verify:all 离线主链（全部门禁，条数以 tools/verify-all.ts 的 GATES 与 npm run verify:all
+# 的输出为准，这里不抄数字）在 CI 里强制执行——门禁链早已全自动，缺的从来是
 # "没人按按钮时它自己会不会跑"。L4（活夹具）不在 CI：它要拉起真实 SnowLuma 实例，
 # 上游本体不进仓库，只能在操作者本机跑（npm run verify:all -- --fixture）。
 #
-# 为什么是 windows-latest：generate 的三段 npm 脚本按本仓开发机写死 Windows 路径
-# （.venv-gen\Scripts\python.exe），POSIX runner 跑不了；demo-regen.yml 为此才收窄到
-# 只有 typescript 一段。这里引导完整工具链（node/python/go + 两个钉版本的生成器），
-# 把三语生成和全部 9 条离线门禁放进 CI。工具链版本以 tools.lock.json 为准：
+# PR 链上还跑一次出口闸（package:clients + smoke:clients）：源码树全绿不等于交付物可消费，
+# "工件装不上/入口指错/示例跑不动"这三类失效只有真装一次才现形，而 Release 链跑到
+# 发布当场才知道就太晚了。
+#
+# 为什么主链是 windows-latest：本仓开发机口径是 Windows，generate 的 venv 腿按 Windows
+# 布局写；POSIX 由 verify-posix job 独立证明同一套门禁清单（不复制清单，两边都只调
+# npm run verify:all）。工具链版本以 tools.lock.json 为准：
 #   openapi-python-client 0.29.1 · oapi-codegen v2.8.0 · go 见 adapters/go/go.mod
 name: verify-all
 
@@ -74,5 +78,14 @@ jobs:
       - name: 生成物新鲜度（gen:check）
         run: npm run gen:check
 
-      - name: verify:all —— 9 条离线门禁
+      - name: verify:all —— 全部离线门禁
         run: npm run verify:all
+
+      # 出口闸：把三语工件装到**仓外临时目录**、按声明的入口解析、把示例真跑一次。
+      # 与 release-clients.yml 用的是同两条脚本，所以"PR 绿"与"能发布"在这里是同一判据，
+      # 不是两套会各自漂的断言。
+      - name: 出口闸 —— staging 合包
+        run: npm run package:clients
+
+      - name: 出口闸 —— 仓外真装、入口解析、示例执行
+        run: npm run smoke:clients

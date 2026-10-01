@@ -17,9 +17,10 @@
 import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { delimiter, join, resolve } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { isCliEntry } from './lib/cli.js';
+import { gorootBinFromLock } from './lib/go-toolchain.js';
 import { ARTIFACT_DIRS, GO_MODULE_ID, PY_DIST_NAME, TS_PACKAGE_NAME, type ArtifactLang } from './lib/client-artifact.js';
 import { OK_TOKEN } from './lib/client-templates.js';
 
@@ -55,7 +56,12 @@ interface RunResult {
 }
 
 function run(cmd: string, cwd: string, timeoutMs = 420_000): RunResult {
-  const r = spawnSync(cmd, { cwd, encoding: 'utf8', shell: true, timeout: timeoutMs, stdio: ['ignore', 'pipe', 'pipe'] });
+  // Go 不写系统 PATH（tools.lock.json → goInstall.notPersisted）：出口闸与 test:go-adapter
+  // 必须用同一份兜底，否则同一条链会出现"go 腿一条能跑、另一条喊缺工具"的分叉。
+  const env = { ...process.env, GOTOOLCHAIN: 'local' } as NodeJS.ProcessEnv;
+  const goBinDir = gorootBinFromLock();
+  if (goBinDir) env.PATH = `${goBinDir}${delimiter}${env.PATH ?? ''}`;
+  const r = spawnSync(cmd, { cwd, encoding: 'utf8', shell: true, timeout: timeoutMs, stdio: ['ignore', 'pipe', 'pipe'], env });
   const err = r.error as (NodeJS.ErrnoException & { signal?: string }) | undefined;
   if (err && (err.code === 'ENOENT' || err.code === 'ETIMEDOUT')) {
     return { code: null, out: `FACILITY: ${err.code} ${err.message}` };

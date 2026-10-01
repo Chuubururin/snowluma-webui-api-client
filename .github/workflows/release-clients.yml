@@ -65,6 +65,15 @@ jobs:
       - name: verify:all —— 发布前置闸
         run: npm run verify:all
 
+      # 出口闸：源码树全绿不等于交付物可消费。发布前把三语工件真装一遍、按 package.json /
+      # pyproject / go.mod 声明的入口真解析一次、示例真跑一次。任何一层红都不产出 Release。
+      # 分成两步而不是一行 `a && b`：pwsh 下 `&&` 不是分隔符，串起来只会得到一条含糊的失败。
+      - name: 出口闸 —— staging 合包
+        run: npm run package:clients
+
+      - name: 出口闸 —— 仓外真装、入口解析、示例执行
+        run: npm run smoke:clients
+
       - name: 打包工件
         id: pack
         shell: pwsh
@@ -72,15 +81,23 @@ jobs:
           $anchor = (Get-Content spec/anchor.json | ConvertFrom-Json).commit
           # 锚点形状检查不信任上游一步的产物：坏 SHA 会造出读不出短前缀的 tag。
           if ($anchor -notmatch '^[0-9a-f]{40}$') { throw "anchor.commit 形状非法：$anchor" }
+          # 契约版本从 spec 现读，用仓库锁定的 yaml 解析器而不是正则扫 YAML ——
+          # 正则只认缩进形状，schema 里任何 `version:` 键都会把它骗过去。
+          $contract = node -e "const y=require('yaml'),fs=require('fs');process.stdout.write(y.parse(fs.readFileSync('spec/openapi.yaml','utf8')).info.version)"
+          if ($contract -notmatch '^\d+\.\d+\.\d+$') { throw "spec info.version 不是三段 semver 契约版本（实为 '$contract'）" }
           # pwsh 字符串展开的坑：`$(Get-Date).ToUniversalTime().ToString(…)` 里只有
           # `$(Get-Date)` 是子表达式，方法调用会留成字面文本——首跑 tag 因此带斜杠，
           # tar 打不开、Release 停在闸口（fail-closed 行为正确，无半成品出厂）。
-          $tag = "clients-$($anchor.Substring(0,7))-$((Get-Date).ToUniversalTime().ToString('yyyyMMddHHmmss'))"
+          # UTC 时刻只承担防重复发布的职责，不表达版本语义；版本语义归 $contract。
+          $tag = "clients-$contract-$($anchor.Substring(0,7))-$((Get-Date).ToUniversalTime().ToString('yyyyMMddHHmmss'))"
           "tag=$tag" >> $env:GITHUB_OUTPUT
+          "contract=$contract" >> $env:GITHUB_OUTPUT
           New-Item -ItemType Directory dist | Out-Null
-          tar -czf "dist/snowluma-clients-typescript-$tag.tar.gz" -C generated typescript
-          tar -czf "dist/snowluma-clients-python-$tag.tar.gz" -C generated python
-          tar -czf "dist/snowluma-clients-go-$tag.tar.gz" -C generated go
+          # 打的是 staging 合包（生成码 + 行为适配层 + 规则表 + README + 示例 + metadata），
+          # 不是裸 generated/：适配层出不了仓，等于把本项目那一层最关键的产物留在仓里发半成品。
+          tar -czf "dist/snowluma-clients-typescript-$tag.tar.gz" -C dist/clients typescript
+          tar -czf "dist/snowluma-clients-python-$tag.tar.gz" -C dist/clients python
+          tar -czf "dist/snowluma-clients-go-$tag.tar.gz" -C dist/clients go
           Copy-Item spec/openapi.yaml dist/
           Copy-Item spec/anchor.json dist/
           Copy-Item spec/NOTICE.md dist/
@@ -95,12 +112,19 @@ jobs:
         shell: pwsh
         run: |
           $anchor = (Get-Content spec/anchor.json | ConvertFrom-Json).commit
+          $contract = "${{ steps.pack.outputs.contract }}"
           @"
           自动发布：main 上契约变更（锚点或 spec）。
 
+          - 契约版本：``$contract``（真源是 spec/openapi.yaml 的 info.version；tag 里那段就是它）
           - 上游锚点：https://github.com/SnowLuma/SnowLuma/commit/$anchor
-          - 工件：三语 SDK 源码 tarball + spec/anchor/NOTICE + SHA256SUMS.txt + 血统收据 .provenance.json
-          - 本 Release 的每个工件出自同一次**先过了 verify:all 9/9** 的构建（见工作流日志）。
+          - 工件：三语**自包含合包** tarball（生成码 + 行为适配层 + 规则表 + README + 可执行示例 + package metadata）
+            + spec/openapi.yaml + spec/anchor.json + NOTICE.md + SHA256SUMS.txt + provenance.json
+          - 每个工件出自同一次**先过了 verify:all 全部离线门禁、再过 smoke:clients 三层出口闸**
+            （仓外真装、按声明的入口解析、示例真跑）的构建，见工作流日志。
+
+          怎么消费：解压对应语言的 tarball 后看**它自带的 README**（安装、最小示例、出处）。
+          这里不重复命令，免得多一份会漂的说明；Go 包是本地 module 工件，不走 go get。
 
           许可口径见 NOTICE.md：非商业自用，不发布到包管理器（npm/PyPI/Go module）；
           本仓 Release 工件属自用分发。
