@@ -6,6 +6,7 @@
  * 文件装进去了但 exports 指错、或 exports 对了但示例跑不动，处置完全不同，
  * 而 `installed && ok` 这种单键形状会把它们合并成看不见的东西。
  */
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { FACILITY_EXIT, exitCodeFor, facilityNote, summarizeLine, type LangResult, type SmokeReport } from './smoke-clients.js';
 
@@ -59,5 +60,30 @@ describe('smoke 收口', () => {
     expect(summarizeLine('typescript', ok)).toMatch(/typescript/);
     expect(summarizeLine('typescript', ok)).toMatch(/装=✓/);
     expect(summarizeLine('typescript', { ...ok, entryOk: false })).toMatch(/入口=✗/);
+  });
+});
+
+describe('TS 腿的 esbuild 调用形态', () => {
+  /**
+   * verify-posix 首航实测：`node node_modules/esbuild/bin/esbuild` 在 Linux 上必崩。
+   * esbuild 的 install.js（第 226 行那条 `os.platform() !== 'win32'` 分支）会把
+   * `bin/esbuild` **换成原生二进制**并 chmod +x —— Windows 上那里留的是 JS shim，
+   * 所以本机永远跑得出绿。用 JS API（`import { build } from 'esbuild'`）才是按包声明的
+   * 跨平台入口，而打包器 package-clients.ts 早就这么调了：同一条链上两处两种形态必然分叉。
+   */
+  const src = readFileSync('tools/smoke-clients.ts', 'utf8');
+
+  // 只扫代码面：本文件那段解释"当初为什么崩"的注释里就带着 `node_modules/esbuild/bin/esbuild`
+  // 这个字面量 —— 拿关键词量散文，会把案发现场当成罪行本身（第一版断言就是这么误红的）。
+  const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+
+  it('不许取 esbuild 的 bin 路径交给 node 执行', () => {
+    expect(code).not.toMatch(/esbuild[\\/]bin/);
+    expect(code).not.toMatch(/esbuildBin/);
+  });
+
+  it('走 esbuild 的 JS API（与 package-clients 同一形态）', () => {
+    expect(code).toMatch(/from 'esbuild'/);
+    expect(code).toMatch(/await build\(\{/);
   });
 });

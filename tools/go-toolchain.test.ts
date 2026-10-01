@@ -20,7 +20,21 @@ const LOCK = {
   generationConstraints: { 'hey-api-openapi-ts': { peerTypeScript: '5.9.3' } },
 } as never;
 
+/**
+ * 只留代码面。解释"当年为什么写死过路径 / 为什么不能把 esbuild 的 bin 交给 node"的注释里
+ * 必然带着那个字面量 —— 拿关键词量散文会把案发现场当成罪行本身（本轮两条源码形状断言都误红过一次）。
+ */
+function codeOf(file: string): string {
+  return readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+}
+
 describe('Go 工具链定位', () => {
+  it('剥注释的尺子自己不许把代码剥光（否则上面两条源码断言就空转了）', () => {
+    const stripped = codeOf('tools/gen/run.ts');
+    expect(stripped).toContain('spawnSync');
+    expect(stripped.length).toBeGreaterThan(1000);
+  });
+
   it('推导出的每个目录都真实存在，且 GOROOT/bin 那一项里真的有 go', () => {
     const dirs = goToolchainDirs();
     for (const d of dirs) expect(existsSync(d), `${d} 不存在`).toBe(true);
@@ -66,7 +80,7 @@ describe('Go 工具链定位', () => {
 
   it('报错文本里不许出现任何具体机器的路径字面量（恢复动作必须可移植）', () => {
     for (const f of ['tools/gen/run.ts', 'tools/lib/go-toolchain.ts']) {
-      expect(readFileSync(f, 'utf8'), `${f} 写死了用户目录`).not.toMatch(/Users[/\\][A-Za-z0-9._-]+|[A-Za-z]:[\\/]go\b|\/c\/go\b/);
+      expect(codeOf(f), `${f} 的执行路径里写死了用户目录`).not.toMatch(/Users[/\\][A-Za-z0-9._-]+|[A-Za-z]:[\\/]go\b|\/c\/go\b/);
     }
   });
 
@@ -75,7 +89,7 @@ describe('Go 工具链定位', () => {
     // 任何"自己拼一个大写 PATH"的写法在这里都跑得通 —— 它就是那种只在作者机器上成立的绿。
     const users = ['tools/smoke-clients.ts', 'tools/run-go-test.ts', 'tools/gen/run.ts'];
     for (const f of users) {
-      const src = readFileSync(f, 'utf8');
+      const src = codeOf(f);
       expect(src, `${f} 没有走单源 envWithGo/withPathFront`).toMatch(/envWithGo|withPathFront/);
       expect(src, `${f} 直接赋值 env.PATH`).not.toMatch(/env\.PATH\s*=/);
     }

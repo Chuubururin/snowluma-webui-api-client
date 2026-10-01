@@ -14,6 +14,7 @@
  *
  * 探针一律先落成文件再执行：shell:true 下在命令行里嵌引号写 JS/Python 是多行字符串的经典炸点。
  */
+import { build } from 'esbuild';
 import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -119,7 +120,7 @@ export function facilityNote(missing: string[]): string {
 const venvPython = (venv: string) =>
   join(venv, process.platform === 'win32' ? 'Scripts' : 'bin', process.platform === 'win32' ? 'python.exe' : 'python');
 
-function smokeTypeScript(artifact: string, tmp: string, version: string): LangResult {
+async function smokeTypeScript(artifact: string, tmp: string, version: string): Promise<LangResult> {
   const r: LangResult = { installed: false, entryOk: false, ranOk: false, detail: '' };
   const proj = join(tmp, 'ts');
   mkdirSync(proj, { recursive: true });
@@ -226,13 +227,29 @@ console.log('ENTRY_OK');
   }
   r.entryOk = true;
 
-  const esbuildBin = resolve('node_modules/esbuild/bin/esbuild');
-  const bundled = run(
-    `node "${esbuildBin}" examples/basic.ts --bundle --format=esm --platform=node --target=es2022 --outfile=examples/basic.mjs`,
-    proj,
-  );
-  if (bundled.code !== 0) {
-    r.detail = `示例打包失败：${lastLines(bundled.out)}`;
+  /**
+   * 示例打包走 esbuild 的 **JS API**，不是 `node node_modules/esbuild/bin/esbuild`。
+   * verify-posix 首航实测：Linux 上那个文件被 esbuild 的 install.js（`os.platform() !== 'win32'`
+   * 那条分支）换成**原生二进制**并 chmod +x，node 加载它直接崩在 run_main；
+   * Windows 上那里留的是 JS shim，所以本机永远跑得绿 —— 又是一条"只在作者机器成立"的绿。
+   * 打包器 package-clients.ts 一直用同一个 API，两条腿本来就该同形。
+   */
+  try {
+    await build({
+      entryPoints: [join(proj, 'examples/basic.ts')],
+      outfile: join(proj, 'examples/basic.mjs'),
+      bundle: true,
+      format: 'esm',
+      platform: 'node',
+      target: 'es2022',
+      absWorkingDir: proj,
+      logLevel: 'silent',
+    });
+  } catch (e) {
+    // esbuild 的错误正文在**前面**（消息 + 定位），用 tail 三行只会看到 Node 的收尾栈——
+    // 上一轮排查就是被这个截断误导过一次。
+    const text = (e as Error).message ?? String(e);
+    r.detail = `示例打包失败：${text.split(/\r?\n/).slice(0, 4).join(' | ').slice(0, 400)}`;
     return r;
   }
   const exe = run('node examples/basic.mjs', proj);
@@ -341,14 +358,14 @@ function smokeGo(artifact: string, tmp: string, version: string): LangResult {
   return r;
 }
 
-export function runSmoke(root = resolve(ARTIFACT_ROOT), workDir = mkdtempSync(join(tmpdir(), 'sl-smoke-'))): SmokeReport {
+export async function runSmoke(root = resolve(ARTIFACT_ROOT), workDir = mkdtempSync(join(tmpdir(), 'sl-smoke-'))): Promise<SmokeReport> {
   const version = contractVersion();
   try {
     const facility = facilitiesMissing(process.cwd());
     if (facility.length) return { langs: {}, facility };
     return {
       langs: {
-        typescript: smokeTypeScript(join(root, ARTIFACT_DIRS.typescript), workDir, version),
+        typescript: await smokeTypeScript(join(root, ARTIFACT_DIRS.typescript), workDir, version),
         python: smokePython(join(root, ARTIFACT_DIRS.python), workDir, version),
         go: smokeGo(join(root, ARTIFACT_DIRS.go), workDir, version),
       },
@@ -359,7 +376,7 @@ export function runSmoke(root = resolve(ARTIFACT_ROOT), workDir = mkdtempSync(jo
 }
 
 if (isCliEntry(import.meta.url, process.argv[1])) {
-  const report = runSmoke();
+  const report = await runSmoke();
   if (report.facility?.length) console.error(facilityNote(report.facility));
   for (const [lang, res] of Object.entries(report.langs)) {
     const r = res as LangResult;

@@ -9,7 +9,7 @@
 
 这条不是修辞。下面每一条都是实测出来的，且都躲在"全绿"后面。
 
-## 1. 被抓到的八处出口缺陷
+## 1. 被抓到的九处出口缺陷
 
 | 缺陷 | 位置 | 为什么既有门禁看不见 |
 | --- | --- | --- |
@@ -21,6 +21,7 @@
 | 新克隆的 `generated/go` 没有 `go.sum`（`go mod init` 不写它） | `tools/gen/run.ts` 的模块初始化 | `adapters/go/go.mod` 把 indirect 依赖全列了 ⇒ 仓内构建替生成模块兜底；工件以生成模块为真源，一装就 missing go.sum entry |
 | TS 适配层按"运行时文件的上一级"读规则表，装包后无处可读 | `adapters/typescript/rules.ts` 的默认解析 | 仓内那份表永远在 `adapters/` 上一级 ⇒ 每次测试都命中，走出仓就 ENOENT |
 | 三份 README 都写"见同目录 `provenance.json`"，工件里根本没有这件；而唯一的相关断言拿 README 散文自己当尺子 | `tools/lib/client-templates.ts` 的出处段 + `package.json` 的 `files` 白名单 | 计划成员断言与散文断言同时成立 —— 只有"装好之后的字节"这一面没人看过（评审复查抓到，不是冷克隆） |
+| 出口闸的 TS 腿把示例打包交给 `node node_modules/esbuild/bin/esbuild` | `tools/smoke-clients.ts` 的"用得动"层 | Linux 上那个文件被 esbuild 的 install.js（`os.platform() !== 'win32'` 分支）换成**原生二进制**并 chmod +x，node 加载必崩；Windows 上那里留的是 JS shim ⇒ 本机永远绿（`verify-posix` 首航实测） |
 
 前四条已修（改成按模块自身位置解析、包内 sibling 优先；第四条不是"修 replace"，而是
 **合并成同一个 module 让它消失**）。第 5、6 条是**冷克隆实测**抓到的——把它们单列出来是因为
@@ -32,6 +33,9 @@
 第 8 条的处置：血统收据进三份工件（`copyFrom generated/.provenance.json`，缺就点名拒收）、
 进 `files` 白名单，并把断言改成两件事——README 指向的件必须是计划成员，
 且必须在**装好的包目录**里存在（`npm pack` 出来的 tgz 才算交付物本体）。
+第 9 条的处置：两条腿统一走 esbuild 的 JS API（`import { build } from 'esbuild'`，与打包器同形），
+并由 `tools/smoke-clients.test.ts` 钉住"不许取 esbuild 的 bin 路径交给 node"——
+这类断言只扫代码面，不扫注释：解释失效原因的注释必然带着那个字面量，量散文就会误红。
 
 第七条不在原计划里，是出口闸第一次真跑抓到的。处置是打包期内嵌规则表
 （真源仍是 `adapters/rules.json`，内嵌副本按 `RulesTable` 受 tsc 检，相等性有断言钉住），
@@ -138,6 +142,8 @@ UTC 时刻只承担防重复发布的职责，不表达版本语义；上游锚�
 | 删掉 `exitCodeFor` 的 facility 分支 | `smoke-clients.test.ts` | 红 exit 1 → 绿 0 |
 | 从导航表摘掉一页 | `docs-index.test.ts` | 红 exit 1 → 绿 0 |
 | 把 `provenance.json` 从 npm `files` 白名单删掉 | `smoke:clients` 的"入口对"层（装好的包字节） | 红 exit 1，detail 点名白名单漏写 → 绿 0 |
+| 把 esbuild 的 bin 路径重新交回 node（塞一个 `esbuildBin` 句柄进代码面） | `smoke-clients.test.ts` 的调用形态断言 | 红 exit 1 → 绿 0 |
+| 让源码形状断言去扫全文（含注释） | 同上 | **误红**：注释里的"当年写死过的那条路径"被当成执行面 —— 已改成只扫代码面，并加一条"剥注释不许把代码剥光"的自证用例 |
 
 反向用例（证明判据不是恒红）：删掉工件里的 `rules.json` 应**仍然绿**——行为已不依赖运行时文件位置。
 
