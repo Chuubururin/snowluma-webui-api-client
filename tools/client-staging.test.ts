@@ -104,6 +104,19 @@ describe('staging 布局', () => {
     expect(entry).toMatch(/export \{ LoginError \} from '\.\/adapter\/client'/);
     expect(entry).toMatch(/LoginError as SdkLoginError/);
     expect(entry).toMatch(/createClient as createSdkClient/);
+    expect(entry).toMatch(/createClient as createDiskClient/);
+  });
+
+  it('TS 出口默认吃内嵌规则表（出口闸第一次真跑就是在这里 ENOENT 抓到的）', () => {
+    const entry = contentOf('typescript/index.ts');
+    expect(entry).toMatch(/import \{ EMBEDDED_RULES \} from '\.\/adapter\/embedded-rules'/);
+    expect(entry).toMatch(/createAdapterClient\(\{ rules: EMBEDDED_RULES, \.\.\.opts \}\)/);
+  });
+
+  it('内嵌的规则表必须与真源逐字段相等（派生物一旦能漂，就是第二张表）', () => {
+    const mod = contentOf('typescript/adapter/embedded-rules.ts');
+    const json = mod.slice(mod.indexOf('= ') + 2).trim().replace(/;$/, '');
+    expect(JSON.parse(json)).toEqual(JSON.parse(readFileSync('adapters/rules.json', 'utf8')));
   });
 
   it('每个 example 文件都带各自语言的 OK 标记（smoke 的"用得动"层按它判）', () => {

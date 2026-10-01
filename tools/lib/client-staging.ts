@@ -42,6 +42,7 @@ export function requiredFiles(): string[] {
     'typescript/NOTICE.md',
     'typescript/package.json',
     'typescript/index.ts',
+    'typescript/adapter/embedded-rules.ts',
     'typescript/tsconfig.build.json',
     'typescript/rules.json',
     'typescript/examples/basic.ts',
@@ -166,25 +167,56 @@ function tsBuildTsconfig(): string {
 }
 
 /**
+ * 打包期内嵌规则表。
+ *
+ * 为什么不沿用"装包后按文件位置读盘"：`rules.ts` 的默认路径按运行时文件的上一级解析，这对仓内
+ * 和对本工件自己的 dist 都成立，但对**消费者把自己的示例打到哪里**没有任何约定。
+ * 出口闸第一次真跑 TS 腿就是在这里 ENOENT：装得上、入口对、tsc 也干净，仍然跑不动。
+ * 真源仍是 `adapters/rules.json`，这里只是它的一份派生物（与 `demo/vocabulary.gen.ts` 同类），
+ * 相等性由 tools/client-staging.test.ts 逐字段核住。
+ */
+function embeddedRulesModule(): string {
+  const table = readFileSync('adapters/rules.json', 'utf8').trim();
+  return `// ${BANNER}
+// 派生自 adapters/rules.json（真源）；打包期内嵌。改表请改真源后重新 npm run package:clients。
+// 类型标注不是摆设：这份字面量在打包期就按适配层自己的 RulesTable 受检（tsc 跑在 package:clients 里）。
+import type { RulesTable } from './rules';
+
+export const EMBEDDED_RULES: RulesTable = ${table};
+`;
+}
+
+/**
  * 出口入口：类型化调用面 + 行为适配层，同一个 specifier 拿到两半。
  * 不带 operations.ts（它读仓内 spec，属源仓工装；带出去就是一个读不到文件的默认值）。
  *
- * 两条显式声明不是装饰，是实测撞名的处置（改任何一侧前先跑一遍 tsc，别靠猜）：
+ * 三条显式处置都不是装饰，各自对应一次实测失效（改任何一侧前先跑 tsc + smoke，别靠猜）：
  *  - `LoginError`：生成面（每操作错误并集）与适配层（bootstrap 失败类）同名。显式指定适配层
- *    那一支为规范名，同时把生成面那支另名给出 —— 两侧都可达，TS2308 也不会再来。
- *  - SDK 的 `createClient` 不在 `generated/index` 的出口面上（它在 client/client.gen），
- *    而适配层自己另有一个更高层的 `createClient`。故 SDK 那一支显式另名导出，
- *    避免"同一个名字在两层里指不同的东西"。
+ *    那一支为规范名，生成面那支另名给出 —— 两侧都可达，TS2308 也不会再来。
+ *  - SDK 的 `createClient` 不在 `generated/index` 的出口面上（它在 client/client.gen），而适配层
+ *    另有一个更高层的 `createClient`。SDK 那一支显式另名，避免同名指两层。
+ *  - 工件上的 `createClient` 默认取内嵌规则表；按盘读表那一条另名 `createDiskClient` 保留。
  */
 function tsEntry(): string {
   return `// ${BANNER}
 // 出口工件的入口：类型化调用面（生成码）与行为适配层（手写）从同一个 specifier 给出。
+import { createClient as createAdapterClient } from './adapter/client';
+import { EMBEDDED_RULES } from './adapter/embedded-rules';
+
 export * from './generated/index';
 export * from './adapter/client';
 export * from './adapter/rules';
 export { LoginError } from './adapter/client';
 export { LoginError as SdkLoginError } from './generated/index';
 export { createClient as createSdkClient } from './generated/client/client.gen';
+export { createClient as createDiskClient } from './adapter/client';
+
+/** 默认入口吃内嵌规则表（消费者的打包位置未知，读盘会 ENOENT）；显式传 rules / rulesPath 仍可覆盖。 */
+export function createClient(
+  opts: Parameters<typeof createAdapterClient>[0],
+): ReturnType<typeof createAdapterClient> {
+  return createAdapterClient({ rules: EMBEDDED_RULES, ...opts });
+}
 `;
 }
 
@@ -199,6 +231,7 @@ export function buildStagingPlan(ctx: { version: string; anchor: string }, root 
     files[`${ARTIFACT_DIRS.typescript}/adapter/${f}`] = { copyFrom: `adapters/typescript/${f}` };
   }
   files[`${ARTIFACT_DIRS.typescript}/index.ts`] = { content: tsEntry() };
+  files[`${ARTIFACT_DIRS.typescript}/adapter/embedded-rules.ts`] = { content: embeddedRulesModule() };
   files[`${ARTIFACT_DIRS.typescript}/package.json`] = { content: packageJson(ctx) };
   files[`${ARTIFACT_DIRS.typescript}/tsconfig.build.json`] = { content: tsBuildTsconfig() };
   files[`${ARTIFACT_DIRS.typescript}/rules.json`] = { copyFrom: 'adapters/rules.json' };
