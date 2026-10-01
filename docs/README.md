@@ -8,7 +8,7 @@
 | **改功能 / 加操作** | [架构与设计概要](concepts/architecture.md) → [开发循环](concepts/workflow.md) → [加一条操作](guides/add-an-operation.md) |
 | **它红了** | [故障排查](guides/troubleshooting.md) → [验证体系](operations/verification.md) |
 
-贡献约定与提交流程在根级 [`CONTRIBUTING.md`](../CONTRIBUTING.md)；开发方向在 [`RoadMap.md`](../RoadMap.md)。
+贡献约定与提交流程在根级 [`CONTRIBUTING.md`](../CONTRIBUTING.md)；给代理的治理不变量在根级 [`AGENTS.md`](../AGENTS.md)；开发方向在 [`RoadMap.md`](../RoadMap.md)。
 
 ## 全部页面
 
@@ -25,6 +25,7 @@
 | --- | --- |
 | [architecture.md](concepts/architecture.md) | 分层、模块边界（实测 import 矩阵）、单一真源清单、生成面/手写面判据 |
 | [upstream-sync.md](concepts/upstream-sync.md) | 上游衔接与产物自动迭代流水线（判据表、PR/工单语义、Release 链） |
+| [release-consumer-readiness.md](concepts/release-consumer-readiness.md) | Release 工件的消费者就绪：合包形态、契约版本语义、出口闸三层与变异检验、支持面 |
 | [workflow.md](concepts/workflow.md) | 这个仓库"自己保持绿"的机制：门禁链、账本模型、提交纪律 |
 
 ### guides — 按任务的操作步骤

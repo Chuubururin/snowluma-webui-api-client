@@ -41,7 +41,7 @@ TypeScript / Python / Go 三个类型化 SDK、行为三语同形的统一适配
 上游源码（锚点 SHA，47 份文件）──提取──▶ spec/openapi.yaml ──codegen──▶ generated/{typescript,python,go}
        │                                  │                              │
        ▼                                  ▼                              ▼
-  spec/anchor.json               9 条离线门禁 verify:all          adapters/{三语适配器}   demo/server（SDK 唯一装配处）
+  spec/anchor.json               离线门禁 verify:all（清单见 docs/reference/gates.md）   adapters/{三语适配器}   demo/server
   （每日探测 · 零判断自动推进）      退出码是唯一机器信号                                        │ HTTP
                                                             demo/client（浏览器端，纯 HTTP）────┘
 ```
@@ -65,7 +65,7 @@ TypeScript / Python / Go 三个类型化 SDK、行为三语同形的统一适配
    npm run generate
    ```
 
-3. 一条命令验收整条链（9 条离线门禁）：
+3. 一条命令验收整条链（离线门禁清单见 [gates.md](docs/reference/gates.md)）：
 
    ```bash
    npm run verify:all
@@ -116,5 +116,6 @@ TypeScript / Python / Go 三个类型化 SDK、行为三语同形的统一适配
 > 文内也不再引用任何历史提交编号、日期或流水号——本仓没有可检索的历史坐标。
 
 - 55 条操作：52 effective + 3 write-only，未登记缺口 0（`npm run ui-coverage` 机器核）
-- 测试：805 用例（vitest；另有 32 条 L4 活体用例默认 skip，`--fixture` 才跑）+ Python / Go 适配器套件
+- 测试：用例数不抄在这里（手抄必漂），以 `npm run verify:all` 的输出为准；L4 活体用例默认 skip，
+  只有 `--fixture` 才跑，Python / Go 适配器套件也在那条链里
 - 最新跑次：[`docs/operations/verify-all-report.json`](docs/operations/verify-all-report.json)
