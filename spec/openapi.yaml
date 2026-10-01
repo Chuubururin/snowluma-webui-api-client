@@ -2,13 +2,14 @@
 openapi: 3.0.3
 info:
   title: SnowLuma WebUI 管理面 API
-  version: 0.0.0-slice
+  version: 0.1.0
   description: |
     派生自 SnowLuma 源码 · 非商业自用 · 不发包管理器
 
-    本文件当前是**垂直切片**（客户端批次）：仅 12 个操作，用于打通 spec → 三家生成器 → 可编译产物。
-    全 55 操作属 Go 批次。`x-replay-class` 与 `x-verification-status` 两轴的取值真源分别是
-    `tools/lib/tiers.ts` 的清单与 `VERIFICATION_STATUSES`。
+    本文件是契约唯一真源：操作、路径与 schema 的计数一律由 `npm run inventory` 现出，
+    不写在这里（写死过一次，契约增长后描述没跟上）。`x-replay-class` 与
+    `x-verification-status` 两轴的取值真源分别是 `tools/lib/tiers.ts` 的清单与
+    `VERIFICATION_STATUSES`。
   license:
     name: Derived from SnowLuma (source-available, non-commercial) — private use only
 servers:

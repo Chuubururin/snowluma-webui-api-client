@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-01T10:05:39.347Z",
-  "gitHead": "252e38ba4d6cc3a6930948705900731b839c425b",
+  "generatedAt": "2026-10-01T11:09:34.102Z",
+  "gitHead": "1a33768fdd5c56482f2017d9e7f742c950678c2e",
   "fixture": false,
   "results": [
     {
@@ -8,7 +8,7 @@
       "npmScript": "test",
       "exit": 0,
       "ok": true,
-      "tail": "✓ tools/demo-route-contract.test.ts (4 tests) 16ms / ↓ tools/demo-fixture.test.ts (5 tests | 5 skipped) / Test Files  56 passed | 3 skipped (59) / Tests  765 passed | 32 skipped (797) / Start at  18:05:25 / Duration  8.03s (tests 57%, import 26%, environment 11%, transform 5%, worker 1%) / Isolate  59 workers spawned ·"
+      "tail": "✓ tools/demo-route-contract.test.ts (4 tests) 19ms / ↓ tools/demo-fixture.test.ts (5 tests | 5 skipped) / Test Files  57 passed | 3 skipped (60) / Tests  768 passed | 32 skipped (800) / Start at  19:09:20 / Duration  8.24s (tests 58%, import 26%, environment 11%, transform 5%, worker 1%) / Isolate  60 workers spawned ·"
     },
     {
       "id": "validate",
