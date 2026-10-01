@@ -60,22 +60,25 @@ npm run venv:bootstrap
 
 ### 3. Go 工具链
 
-本机（Windows）按 `tools.lock.json → goInstall`：官方 zip 解压到 `C:\go`，
+本机（Windows）按 `tools.lock.json → goInstall`：官方 zip 解压到锁记的 GOROOT，
 **不写系统 PATH、不动注册表**。因此每个新终端要么自行
 
 ```bash
-export PATH="/c/go/bin:$PATH"
+export PATH="<GOROOT>/bin:<GOPATH>/bin:$PATH"   # 两个目录都从 tools.lock.json / go env 推导
 ```
 
-要么什么都不做——`npm run test:go-adapter` 的启动器会读锁里的 GOROOT 兜底。
-找不到 go 时它带指引退 1，**绝不静默 skip**。
+要么什么都不做——`npm run generate` 的 Go 腿与 `npm run test:go-adapter` 的启动器都会读锁里的
+GOROOT、再补 `<GOPATH>/bin`（`go install` 的落点，oapi-codegen 在那里）前置进子进程 PATH。
+找不到时它们带推导出来的目录退 1，**绝不静默 skip、也不写死某台机器的路径**。
 
 ### 4. oapi-codegen
 
 ```bash
 go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.8.0
-# 确认 <GOPATH>/bin 在 PATH 上
+# 版本号取 tools.lock.json → generators["oapi-codegen"]
 ```
+
+装完不需要动 PATH：上一条的落点由 `go env GOPATH` 推导，第 3 步的兜底会把它前置进去。
 
 ### 5. 上游源码缓存（vendor/upstream/）
 
