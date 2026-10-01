@@ -68,9 +68,14 @@ describe('README 与示例同源', () => {
   });
 
   it('README 四段齐备：这是什么 / 怎么装 / 最小调用示例 / 版本与出处', () => {
+    // 段清单写死在这里，不读 requiredReadmeSections()：读过一遍的清单再拿去量同一份清单，
+    // 删掉一段就两边一起缩小，断言永不成立（变异检验实测：把模板里的「版本与出处」删掉，
+    // 31 条用例全绿）。合同在测试里，模板只许满足它。
+    const sections = ['这是什么', '怎么装', '最小调用示例', '版本与出处'];
+    expect(requiredReadmeSections()).toEqual(sections);
     for (const lang of LANGS) {
       const rm = readme(lang);
-      for (const section of requiredReadmeSections()) {
+      for (const section of sections) {
         expect(rm, `${lang} 缺「${section}」`).toContain(`## ${section}`);
       }
     }

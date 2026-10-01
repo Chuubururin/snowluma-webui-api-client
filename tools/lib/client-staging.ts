@@ -33,13 +33,15 @@ export type StagePlan = {
   prerequisites: string[];
 };
 
-const PY_ADAPTER_IMPORT = `${PY_PACKAGE}.adapter`;
+/** 血统收据（由 `npm run generate` 写）：三语工件各带一份，README 的出处段就指向它。 */
+const PROVENANCE_SOURCE = 'generated/.provenance.json';
 
-/** 每种语言的工件目录必须齐备的件：README / 许可 / metadata / 入口或数据文件 / 示例。 */
+/** 每种语言的工件目录必须齐备的件：README / 许可 / metadata / 入口或数据文件 / 示例 / 血统收据。 */
 export function requiredFiles(): string[] {
   return [
     'typescript/README.md',
     'typescript/NOTICE.md',
+    'typescript/provenance.json',
     'typescript/package.json',
     'typescript/index.ts',
     'typescript/adapter/embedded-rules.ts',
@@ -48,12 +50,14 @@ export function requiredFiles(): string[] {
     'typescript/examples/basic.ts',
     'python/README.md',
     'python/NOTICE.md',
+    'python/provenance.json',
     'python/pyproject.toml',
     `python/${PY_PACKAGE}/rules.json`,
     `python/${PY_PACKAGE}/adapter.py`,
     'python/examples/basic.py',
     'go/README.md',
     'go/NOTICE.md',
+    'go/provenance.json',
     'go/go.mod',
     'go/go.sum',
     'go/rules.json',
@@ -104,7 +108,10 @@ function packageJson(ctx: { version: string }): string {
       main: './dist/index.js',
       types: './dist/index.d.ts',
       exports: { '.': { types: './dist/index.d.ts', import: './dist/index.js' } },
-      files: ['dist', 'adapter', 'generated', 'rules.json', 'examples', 'NOTICE.md'],
+      // 白名单必须齐：`npm pack`/装包只看这个列表，漏一项就是"目录里有、装完没有"。
+      // README.md 与 package.json/LICENSE 由 npm 无条件附带，重复声明不会报错，但会误导
+      // 下一个读者以为漏写就没了 —— 所以只列真正需要点名的件。
+      files: ['dist', 'adapter', 'generated', 'rules.json', 'examples', 'NOTICE.md', 'provenance.json'],
       dependencies: {},
       license: 'SEE NOTICE.md',
       description: 'Derived SnowLuma WebUI admin API client (TypeScript) with behavior adapters. Not published to npm.',
@@ -296,11 +303,25 @@ export function buildStagingPlan(ctx: { version: string; anchor: string }, root 
   files[`${ARTIFACT_DIRS.go}/NOTICE.md`] = { content: noticeFor('go', ctx) };
   files[`${ARTIFACT_DIRS.go}/examples/basic.go`] = { content: renderExample('go') };
 
+  // 三份 README 的"版本与出处"段都指向同目录的 provenance.json（spec 哈希 + 三家 pin 的血统收据）。
+  // 这份件此前只存在于 Release 根，工件里那一句是空头承诺；收据本身不在计划里，
+  // 而"README 写了 ≠ 工件带了"正是本仓已经栽过两次的自证型断言。
+  for (const lang of ['typescript', 'python', 'go'] as const) {
+    files[`${ARTIFACT_DIRS[lang]}/provenance.json`] = { copyFrom: PROVENANCE_SOURCE };
+  }
+
   return {
     root,
     langs: ['typescript', 'python', 'go'],
     files,
-    prerequisites: ['generated/typescript', 'generated/python', 'generated/go', 'adapters', 'spec/NOTICE.md'],
+    prerequisites: [
+      'generated/typescript',
+      'generated/python',
+      'generated/go',
+      PROVENANCE_SOURCE,
+      'adapters',
+      'spec/NOTICE.md',
+    ],
   };
 }
 
@@ -325,4 +346,4 @@ export function artifactDir(root: string, lang: ArtifactLang): string {
   return join(root, ARTIFACT_DIRS[lang]);
 }
 
-export { GO_MODULE_ID, PY_PACKAGE, PY_ADAPTER_IMPORT, TS_PACKAGE_NAME };
+export { GO_MODULE_ID, PY_PACKAGE, TS_PACKAGE_NAME };

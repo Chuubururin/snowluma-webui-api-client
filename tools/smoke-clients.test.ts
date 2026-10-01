@@ -7,7 +7,7 @@
  * 而 `installed && ok` 这种单键形状会把它们合并成看不见的东西。
  */
 import { describe, expect, it } from 'vitest';
-import { FACILITY_EXIT, exitCodeFor, summarizeLine, type LangResult, type SmokeReport } from './smoke-clients.js';
+import { FACILITY_EXIT, exitCodeFor, facilityNote, summarizeLine, type LangResult, type SmokeReport } from './smoke-clients.js';
 
 const ok: LangResult = { installed: true, entryOk: true, ranOk: true, detail: '' };
 
@@ -48,6 +48,11 @@ describe('smoke 收口', () => {
   it('设施故障退出码与判定红退出码不同（"没验"绝不能读成"验过"或"验不过"）', () => {
     expect(FACILITY_EXIT).toBe(2);
     expect(exitCodeFor(report())).toBe(0);
+    // 三语齐但设施缺件：langs 里全是 true 也不算通过，判 2 而不是 0。
+    expect(exitCodeFor({ ...report(), facility: ['go（退 1：exit status 1）'] })).toBe(FACILITY_EXIT);
+    // 判定红与设施红必须是两个码。
+    expect(exitCodeFor(report({ go: { ...ok, ranOk: false } }))).toBe(1);
+    expect(facilityNote(['npm（退 127：not found）'])).toContain('设施缺件');
   });
 
   it('通过项的采集不留空话：detail 为空时 summarize 仍打出三层标记', () => {

@@ -10,6 +10,7 @@
 | `npm run generate typescript\|python\|go` | 单语言腿 | 会把 `.provenance.json` 改成单语言收据，`probe` 随即红——恢复就是跑全量 `generate` |
 | `npm run gen:demo` | 重出 `demo/vocabulary.gen.ts` | 唯一生成面产物 |
 | `npm run venv:bootstrap` | 建 `.venv-gen` 并装 `openapi-python-client` | 版本读 `tools.lock.json`；venv 目录按平台解析；系统解释器名试 `python`/`python3` |
+| `npm run oapi:install` | 装 oapi-codegen（`go install`，版本读 `tools.lock.json`） | 同上一条同源：CI 与本仓都调这条，workflow 里不许留版本号抄本（`tools/workflow-pins.test.ts` 执法）；go 不在 PATH 时按锁记 GOROOT 借 |
 | `npm run probe:py-import` | 用 venv 解释器跑 `tools/gen/probe-import.py` | 走 `tools/py-venv-run.ts`；venv 缺席带指引退 1，**绝不静默跳过** |
 | `npm run package:clients` | 把生成码 + 三语适配器合成三个自包含工件目录（`dist/clients/`） | 缺输入面退 2 并点名 `npm run generate`；TS 腿出 `dist/`（无扩展名导入不能直发源码） |
 | `npm run smoke:clients` | 出口闸：仓外真装 / 声明的入口解析 / 示例真跑 | **Release 前置闸 + CI 两个 job 都跑**；不在离线 GATES（要装包取依赖，会破"离线"性质）；设施缺件退 2 与判定红退 1 分开 |

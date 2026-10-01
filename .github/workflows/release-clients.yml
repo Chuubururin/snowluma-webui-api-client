@@ -42,17 +42,16 @@ jobs:
           cache: true
           cache-dependency-path: adapters/go/go.sum
 
-      - name: 安装 oapi-codegen（版本钉 tools.lock.json）
-        run: go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.8.0
+      - run: npm ci
 
-      - name: go 工具进 PATH
-        shell: pwsh
-        run: echo "$(go env GOPATH)\bin" >> $env:GITHUB_PATH
-
+      # 两条引导都调仓内脚本，因此排在 npm ci 之后（tsx 来自 node_modules）；
+      # 版本只从 tools.lock.json 读。GOPATH/bin 不再手动进 GITHUB_PATH ——
+      # tools/lib/go-toolchain.ts 会把 GOROOT/bin 与 <GOPATH>/bin 一并推导前置。
       - name: 引导 .venv-gen（版本取 tools.lock.json，路径按平台解析）
         run: npm run venv:bootstrap
 
-      - run: npm ci
+      - name: 安装 oapi-codegen（版本取 tools.lock.json）
+        run: npm run oapi:install
 
       - name: 恢复 vendor/upstream 缓存（按锚点 SHA 重拉）
         run: npm run fetch:upstream
@@ -108,9 +107,14 @@ jobs:
 
       - name: Release 正文
         shell: pwsh
+        env:
+          # 走 env 而不是把 ${{ }} 直接内插进脚本：GitHub 官方的注入面建议，
+          # 今天这个值被上游 regex 校验过所以内插无害，但"无害"依赖的是别的步骤的正则，
+          # 而不是这一行自己能看懂的东西。
+          CONTRACT: ${{ steps.pack.outputs.contract }}
         run: |
           $anchor = (Get-Content spec/anchor.json | ConvertFrom-Json).commit
-          $contract = "${{ steps.pack.outputs.contract }}"
+          $contract = $env:CONTRACT
           @"
           自动发布：main 上契约变更（锚点或 spec）。
 

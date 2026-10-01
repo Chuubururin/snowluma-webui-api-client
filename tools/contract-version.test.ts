@@ -24,7 +24,7 @@ function specInfo(): SpecInfo {
   return doc.info;
 }
 
-/** 契约版本唯一真源。Task 3 的打包器与 Task 6 的 Release tag 都按这一句读法取值。 */
+/** 契约版本唯一真源：打包器写的三份 metadata 与 Release tag 都按这一句读法取值。 */
 export function specContractVersion(): string {
   return specInfo().version;
 }

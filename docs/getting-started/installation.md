@@ -74,11 +74,13 @@ GOROOT、再补 `<GOPATH>/bin`（`go install` 的落点，oapi-codegen 在那里
 ### 4. oapi-codegen
 
 ```bash
-go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.8.0
-# 版本号取 tools.lock.json → generators["oapi-codegen"]
+npm run oapi:install
 ```
 
-装完不需要动 PATH：上一条的落点由 `go env GOPATH` 推导，第 3 步的兜底会把它前置进去。
+版本从 `tools.lock.json → generators["oapi-codegen"]` 读；锁里没有这项就报错拒跑，
+不凭记忆补版本号。装完不需要动 PATH：`go install` 的落点由 `go env GOPATH` 推导，
+第 3 步说的兜底会把两个目录一起前置进子进程 PATH。CI 用的是同一条脚本，
+所以 workflow 里没有第二份版本号可漂（`tools/workflow-pins.test.ts` 执法）。
 
 ### 5. 上游源码缓存（vendor/upstream/）
 
@@ -109,7 +111,7 @@ tidy 需要 module 缓存里有 `github.com/oapi-codegen/runtime`，离线机器
 ## 验证装好了
 
 ```bash
-npm run verify:all        # 9 条离线门禁
+npm run verify:all        # 全部离线门禁，条数以这条命令自己的输出为准
 npx vitest run            # 只要测试面
 ```
 

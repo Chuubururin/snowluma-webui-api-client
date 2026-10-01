@@ -17,11 +17,11 @@
 import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { delimiter, join, resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { isCliEntry } from './lib/cli.js';
-import { gorootBinFromLock } from './lib/go-toolchain.js';
-import { ARTIFACT_DIRS, GO_MODULE_ID, PY_DIST_NAME, TS_PACKAGE_NAME, type ArtifactLang } from './lib/client-artifact.js';
+import { envWithGo } from './lib/go-toolchain.js';
+import { ARTIFACT_DIRS, ARTIFACT_ROOT, GO_MODULE_ID, PY_DIST_NAME, PY_PACKAGE, TS_PACKAGE_NAME, type ArtifactLang } from './lib/client-artifact.js';
 import { OK_TOKEN } from './lib/client-templates.js';
 
 /** 设施故障的退出码，与判定红（1）分开。 */
@@ -36,10 +36,13 @@ export interface LangResult {
 
 export interface SmokeReport {
   langs: Partial<Record<ArtifactLang, LangResult>>;
+  /** 设施缺件时非空：判定根本没成立，退出码与"验不过"分开。 */
+  facility?: string[];
 }
 
 /** 三语齐备是判定成立的前提：少一门就是"没验那一门"，不许算通过。空清单同样红。 */
 export function exitCodeFor(report: SmokeReport): number {
+  if (report.facility?.length) return FACILITY_EXIT;
   const entries = Object.values(report.langs) as LangResult[];
   if (entries.length !== 3) return 1;
   return entries.every((r) => r.installed && r.entryOk && r.ranOk) ? 0 : 1;
@@ -58,13 +61,17 @@ interface RunResult {
 function run(cmd: string, cwd: string, timeoutMs = 420_000): RunResult {
   // Go 不写系统 PATH（tools.lock.json → goInstall.notPersisted）：出口闸与 test:go-adapter
   // 必须用同一份兜底，否则同一条链会出现"go 腿一条能跑、另一条喊缺工具"的分叉。
-  const env = { ...process.env, GOTOOLCHAIN: 'local' } as NodeJS.ProcessEnv;
-  const goBinDir = gorootBinFromLock();
-  if (goBinDir) env.PATH = `${goBinDir}${delimiter}${env.PATH ?? ''}`;
+  // 合并动作也住在那里 —— 本机 env 的键名可能是 `Path`，自己拼一个大写 PATH 会得到两份
+  // 大小写不同的副本，谁覆盖谁取决于运行时（这条在 tools/lib/go-toolchain.ts 里已被记过一次）。
+  const { env } = envWithGo({ ...process.env, GOTOOLCHAIN: 'local' } as NodeJS.ProcessEnv);
   const r = spawnSync(cmd, { cwd, encoding: 'utf8', shell: true, timeout: timeoutMs, stdio: ['ignore', 'pipe', 'pipe'], env });
   const err = r.error as (NodeJS.ErrnoException & { signal?: string }) | undefined;
   if (err && (err.code === 'ENOENT' || err.code === 'ETIMEDOUT')) {
     return { code: null, out: `FACILITY: ${err.code} ${err.message}` };
+  }
+  // 超时是被信号杀掉的：那属"没验"，写成判定红就等于把设施故障算成工件不合格。
+  if (r.status === null && r.signal) {
+    return { code: null, out: `FACILITY: 子进程被 ${r.signal} 终止（上限 ${timeoutMs}ms）` };
   }
   return { code: r.status, out: `${r.stdout ?? ''}${r.stderr ?? ''}`.trim() };
 }
@@ -82,8 +89,12 @@ function contractVersion(): string {
   return (parseYaml(readFileSync('spec/openapi.yaml', 'utf8')) as { info: { version: string } }).info.version;
 }
 
-/** 缺工具就点名退 2；绝不静默跳过某门语言（跳过 = 把"没验"写成"验过"）。 */
-export function assertFacilities(cwd: string): void {
+/**
+ * 设施探针：缺哪几样就返回哪几样。
+ * 不在这里 process.exit —— 以前它直接退，把外层的 `finally`（清理临时目录）整个跳过，
+ * 每次设施红都在系统临时目录里留一份装了半套的垃圾。判定与清场分开，谁都不许抢跑。
+ */
+export function facilitiesMissing(cwd: string): string[] {
   const missing: string[] = [];
   for (const [name, cmd] of [
     ['npm', 'npm -v'],
@@ -93,15 +104,16 @@ export function assertFacilities(cwd: string): void {
     const r = run(cmd, cwd, 60_000);
     if (r.code !== 0) missing.push(`${name}（退 ${r.code}：${lastLines(r.out, 1)}）`);
   }
-  if (missing.length) {
-    console.error(
-      `设施缺件，判定不成立：${missing.join('、')}\n` +
-        '  恢复动作：见 docs/getting-started/installation.md。Go 不写系统 PATH，需按锁里的 GOROOT 前置；' +
-        'Python 腿用系统 python 即可（纯标准库）。\n' +
-        '  本闸不静默跳过任何一门语言。',
-    );
-    process.exit(FACILITY_EXIT);
-  }
+  return missing;
+}
+
+export function facilityNote(missing: string[]): string {
+  return (
+    `设施缺件，判定不成立：${missing.join('、')}\n` +
+    '  恢复动作：见 docs/getting-started/installation.md。Go 不写系统 PATH，需按锁里的 GOROOT 前置；' +
+    'Python 腿用系统 python 即可（纯标准库）。\n' +
+    '  本闸不静默跳过任何一门语言。'
+  );
 }
 
 const venvPython = (venv: string) =>
@@ -113,7 +125,19 @@ function smokeTypeScript(artifact: string, tmp: string, version: string): LangRe
   mkdirSync(proj, { recursive: true });
   writeFileSync(join(proj, 'package.json'), '{ "name": "smoke-ts", "private": true, "type": "module" }\n', 'utf8');
 
-  const inst = run(`npm install "${artifact}" --no-audit --no-fund --loglevel=error`, proj);
+  /**
+   * 装的是 `npm pack` 出来的 tgz，不是工件目录。
+   * 为什么：目录安装在本机 npm 10.9.8 实测是把 node_modules/<pkg> 做成**指向工件目录的符号链接**，
+   * 于是"仓外真装"这一层对 TS 并不成立，package.json 的 `files` 白名单也永远走不到（漏一件
+   * 只有 pack 之后才发现）。Go 腿为此专门复制工件（见 smokeGo），TS 腿不许例外。
+   */
+  const packed = run(`npm pack --pack-destination "${tmp}"`, artifact);
+  const tgz = (packed.out.match(/[\w.-]+\.tgz/g) ?? []).pop();
+  if (packed.code !== 0 || !tgz) {
+    r.detail = `npm pack 退 ${packed.code}：${lastLines(packed.out)}`;
+    return r;
+  }
+  const inst = run(`npm install "${join(tmp, tgz)}" --no-audit --no-fund --loglevel=error`, proj);
   if (inst.code !== 0) {
     r.detail = `npm install 退 ${inst.code}：${lastLines(inst.out)}`;
     return r;
@@ -146,6 +170,28 @@ function smokeTypeScript(artifact: string, tmp: string, version: string): LangRe
   }
   if (absentFiles.length) {
     r.detail = `package.json 声明的入口文件不存在：${absentFiles.join(', ')}`;
+    return r;
+  }
+
+  /**
+   * README 里"见同目录 X"承诺的每一件，必须真的在**装好之后**的包目录里。
+   * 为什么计划级断言不够（client-staging.test.ts 已经钉过一次成员）：npm 只按 package.json
+   * 的 `files` 白名单装包，计划里有、白名单没写 = 目录里在、装完没有。这类失效只在
+   * shipped bytes 上现形，而上一轮就是这样漏掉 provenance.json 的。
+   */
+  const readmePath = join(pkgDir, 'README.md');
+  if (!existsSync(readmePath)) {
+    r.detail = '装好的包里没有 README.md（工件自带的安装说明没进白名单）';
+    return r;
+  }
+  const promised = [...readFileSync(readmePath, 'utf8').matchAll(/同目录 `([^`]+)`/g)].map((m) => m[1]);
+  const missingPromised = promised.filter((p) => !existsSync(join(pkgDir, p)));
+  if (missingPromised.length) {
+    r.detail = `README 承诺的同目录文件没进包：${missingPromised.join(', ')}（package.json 的 files 白名单漏写）`;
+    return r;
+  }
+  if (!promised.length) {
+    r.detail = 'README 里没有一条"同目录"承诺 —— 本层断言已空转，判红而不是判过';
     return r;
   }
 
@@ -220,8 +266,8 @@ function smokePython(artifact: string, tmp: string, version: string): LangResult
   writeFileSync(
     join(proj, 'probe.py'),
     `import importlib.metadata as md
-from snowluma_client import adapter
-from snowluma_client import Client
+from ${PY_PACKAGE} import adapter
+from ${PY_PACKAGE} import Client
 
 def transport(method, path, opts=None):
     return (200, {"success": True, "token": "t", "mustChangePassword": False})
@@ -295,10 +341,11 @@ function smokeGo(artifact: string, tmp: string, version: string): LangResult {
   return r;
 }
 
-export function runSmoke(root = resolve('dist/clients'), workDir = mkdtempSync(join(tmpdir(), 'sl-smoke-'))): SmokeReport {
+export function runSmoke(root = resolve(ARTIFACT_ROOT), workDir = mkdtempSync(join(tmpdir(), 'sl-smoke-'))): SmokeReport {
   const version = contractVersion();
   try {
-    assertFacilities(process.cwd());
+    const facility = facilitiesMissing(process.cwd());
+    if (facility.length) return { langs: {}, facility };
     return {
       langs: {
         typescript: smokeTypeScript(join(root, ARTIFACT_DIRS.typescript), workDir, version),
@@ -311,21 +358,16 @@ export function runSmoke(root = resolve('dist/clients'), workDir = mkdtempSync(j
   }
 }
 
-/** `--artifact-root <dir>`；缺省 dist/clients。缺省时绝不把 indexOf(-1)+1 当成下标用。 */
-export function artifactRootFrom(argv: string[]): string {
-  const i = argv.indexOf('--artifact-root');
-  return resolve(i >= 0 && argv[i + 1] ? argv[i + 1] : 'dist/clients');
-}
-
 if (isCliEntry(import.meta.url, process.argv[1])) {
-  const report = runSmoke(artifactRootFrom(process.argv));
+  const report = runSmoke();
+  if (report.facility?.length) console.error(facilityNote(report.facility));
   for (const [lang, res] of Object.entries(report.langs)) {
     const r = res as LangResult;
     const pass = r.installed && r.entryOk && r.ranOk;
     console.log(`${pass ? '✓' : '✗'} ${summarizeLine(lang as ArtifactLang, r)}`);
   }
   const code = exitCodeFor(report);
-  if (code !== 0) {
+  if (code === 1) {
     console.error(
       '出口闸未通过。逐层对照：\n' +
         '  装不上 → npm/pip/go 是否可用、工件目录是否齐备（npm run package:clients 会点名缺项）\n' +
@@ -334,6 +376,12 @@ if (isCliEntry(import.meta.url, process.argv[1])) {
         '  禁止的处置：放宽本闸、跳过某门语言、或把红解释成环境问题后照常发布',
     );
   }
-  console.log(code === 0 ? '出口闸三层全真 ✓' : `出口闸判定红（exit ${code}）`);
+  console.log(
+    code === 0
+      ? '出口闸三层全真 ✓'
+      : code === FACILITY_EXIT
+        ? `出口闸**没有跑**（设施缺件，exit ${FACILITY_EXIT}）—— 这既不是通过也不是判定红`
+        : `出口闸判定红（exit ${code}）`,
+  );
   process.exit(code);
 }

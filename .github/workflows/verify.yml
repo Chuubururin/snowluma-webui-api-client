@@ -9,10 +9,11 @@
 # "工件装不上/入口指错/示例跑不动"这三类失效只有真装一次才现形，而 Release 链跑到
 # 发布当场才知道就太晚了。
 #
-# 为什么主链是 windows-latest：本仓开发机口径是 Windows，generate 的 venv 腿按 Windows
-# 布局写；POSIX 由 verify-posix job 独立证明同一套门禁清单（不复制清单，两边都只调
-# npm run verify:all）。工具链版本以 tools.lock.json 为准：
-#   openapi-python-client 0.29.1 · oapi-codegen v2.8.0 · go 见 adapters/go/go.mod
+# 为什么有两条 job 而不是矩阵：required check 的实测名是 `verify`（不带 OS 后缀），
+# 改成矩阵会让检查名变成 `verify (windows-latest)` 这类，branch protection 会等一个
+# 永远不会来的检查。两条 job 的 `run:` 序列必须逐条相等，这条由 tools/workflow-pins.test.ts
+# 执法 —— 复制两份步骤的风险是"加一条门禁只进了一个 OS"，钉住相等就把这个风险换成了
+# 一次变红。工具链版本只住在 tools.lock.json，workflow 里不许出现版本号或 venv/go 路径。
 name: verify-all
 
 on:
@@ -47,18 +48,20 @@ jobs:
           cache: true
           cache-dependency-path: adapters/go/go.sum
 
-      - name: 安装 oapi-codegen（版本钉 tools.lock.json）
-        run: go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.8.0
+      - name: 依赖
+        run: npm ci
 
-      - name: go 工具进 PATH
-        shell: pwsh
-        run: echo "$(go env GOPATH)\bin" >> $env:GITHUB_PATH
-
+      # 两条引导都调仓内脚本（tsx 来自 node_modules，所以必须排在 npm ci 之后）：
+      # 版本一律从 tools.lock.json 读，workflow 里不许出现 `pip install pkg==X` 或
+      # `go install …@vY` —— 那是 AGENTS.md「真源在哪」表明列的派生面。
       - name: 引导 .venv-gen（版本取 tools.lock.json，路径按平台解析）
         run: npm run venv:bootstrap
 
-      - name: 依赖
-        run: npm ci
+      - name: 安装 oapi-codegen（版本取 tools.lock.json）
+        run: npm run oapi:install
+
+      # 这里不再往 GITHUB_PATH 里塞 `go env GOPATH`/bin：tools/lib/go-toolchain.ts 会把
+      # GOROOT/bin 与 <GOPATH>/bin 一并推导前置，两处都写就等于两处会漂。
 
       # vendor/upstream/ 不入库（gitignore），而 drift、ui-coverage、build-anchor 基线绊线
       # 三条门禁都读它——冷克隆不恢复缓存就必红，而 lock 明令禁止用 skip/放宽把它变绿。
@@ -117,17 +120,14 @@ jobs:
           cache: true
           cache-dependency-path: adapters/go/go.sum
 
-      - name: 安装 oapi-codegen（版本钉 tools.lock.json）
-        run: go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.8.0
-
-      - name: go 工具进 PATH
-        run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: 依赖
+        run: npm ci
 
       - name: 引导 .venv-gen（版本取 tools.lock.json，路径按平台解析）
         run: npm run venv:bootstrap
 
-      - name: 依赖
-        run: npm ci
+      - name: 安装 oapi-codegen（版本取 tools.lock.json）
+        run: npm run oapi:install
 
       - name: 恢复 vendor/upstream 缓存（按锚点 SHA 重拉）
         run: npm run fetch:upstream

@@ -4,7 +4,7 @@
  * 真装真解析真跑归 tools/smoke-clients.ts —— 分开是为了让"漏一个文件""版本号没跟上"
  * 这类失效在秒级现形，而不是等到装包那条慢链上才红。
  */
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
@@ -33,6 +33,18 @@ describe('staging 布局', () => {
     for (const rel of requiredFiles()) {
       expect(files, `缺 ${rel}`).toContain(rel);
     }
+  });
+
+  it('requiredFiles 自己不许被删薄（每语言四类件都在，条数有下限）', () => {
+    // 上一条断言是"计划 ⊇ 清单"，清单本身变短时它不会红 —— 所以这里把清单的形状钉住。
+    for (const lang of ['typescript', 'python', 'go']) {
+      const list = requiredFiles().filter((f) => f.startsWith(`${lang}/`));
+      for (const kind of ['README.md', 'NOTICE.md', 'provenance.json']) {
+        expect(list, `${lang} 的必发件缺 ${kind}`).toContain(`${lang}/${kind}`);
+      }
+      expect(list.some((f) => /examples\/basic\.[a-z]+$/.test(f)), `${lang} 缺可执行示例`).toBe(true);
+    }
+    expect(requiredFiles().length, '必发件清单被删薄').toBeGreaterThanOrEqual(24);
   });
 
   it('三份 metadata 的版本号都等于 spec 契约版本（真源只有一个）', () => {
@@ -157,12 +169,31 @@ describe('staging 布局', () => {
     expect(missingGoModuleFiles()).toEqual([]);
   });
 
-  it('搬运项指向真实存在的源目录（拼错一个目录名，计划绿而工件缺件）', () => {
+  it('README 里"见同目录 X"承诺的每一件都必须是计划成员（散文不能承诺工件里没有的件）', () => {
+    // 这条是自我指认型断言的解法：不是再断言一次 README 写了 provenance.json，
+    // 而是把 README 指向的文件名抽出来，逐个对着 plan.files 核。
+    const promised: string[] = [];
+    for (const lang of ['typescript', 'python', 'go']) {
+      const readme = contentOf(`${lang}/README.md`);
+      for (const m of readme.matchAll(/同目录 `([^`]+)`/g)) {
+        promised.push(`${lang}/${m[1]}`);
+        expect(files, `${lang}/README.md 指向不存在的 ${m[1]}`).toContain(`${lang}/${m[1]}`);
+      }
+    }
+    expect(promised.length, 'README 里一条"同目录"承诺都没有 —— 抽取式断言已经空转').toBeGreaterThan(0);
+    // 血统收据是三语共用的同一份源，不是各写一份。
+    for (const lang of ['typescript', 'python', 'go']) {
+      expect(plan.files[`${lang}/provenance.json`]?.copyFrom).toBe('generated/.provenance.json');
+    }
+  });
+
+  it('搬运项指向真实存在的源文件（拼错一个目录名，计划绿而工件缺件）', () => {
     const copies = Object.entries(plan.files).filter(([, e]) => e.copyFrom);
     expect(copies.length).toBeGreaterThan(20);
     for (const [rel, e] of copies) {
       expect(e.copyFrom, `${rel} 没有来源`).toBeTruthy();
       expect(e.copyFrom).not.toMatch(/\\/);
+      expect(existsSync(e.copyFrom!), `${rel} 的来源 ${e.copyFrom} 不存在`).toBe(true);
     }
   });
 });

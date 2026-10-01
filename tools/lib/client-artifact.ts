@@ -41,4 +41,9 @@ export const ARTIFACT_DIRS = {
 
 export type ArtifactLang = keyof typeof ARTIFACT_DIRS;
 
-export const ARTIFACT_LANGS: readonly ArtifactLang[] = ['typescript', 'python', 'go'];
+/**
+ * 出口工件的落点：打包器写它、出口闸读它、Release 从它 tar。
+ * 以前这里是一个 `ARTIFACT_LANGS` 常量和一个 `--out` / `--artifact-root` 开关，三者都没有消费者 ——
+ * 工件路径只该有一个常量，"装到别处试试"属临时需求，不是交付面。
+ */
+export const ARTIFACT_ROOT = 'dist/clients';

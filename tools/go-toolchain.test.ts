@@ -69,6 +69,17 @@ describe('Go 工具链定位', () => {
       expect(readFileSync(f, 'utf8'), `${f} 写死了用户目录`).not.toMatch(/Users[/\\][A-Za-z0-9._-]+|[A-Za-z]:[\\/]go\b|\/c\/go\b/);
     }
   });
+
+  it('需要 go 的入口只许用 envWithGo 合并 PATH，不许自己拼 PATH=（本机键名可能是 Path）', () => {
+    // 这条为什么必须是源码形状而不是行为断言：本机的 env 键恰好是大写 PATH，
+    // 任何"自己拼一个大写 PATH"的写法在这里都跑得通 —— 它就是那种只在作者机器上成立的绿。
+    const users = ['tools/smoke-clients.ts', 'tools/run-go-test.ts', 'tools/gen/run.ts'];
+    for (const f of users) {
+      const src = readFileSync(f, 'utf8');
+      expect(src, `${f} 没有走单源 envWithGo/withPathFront`).toMatch(/envWithGo|withPathFront/);
+      expect(src, `${f} 直接赋值 env.PATH`).not.toMatch(/env\.PATH\s*=/);
+    }
+  });
 });
 
 /** 临时目录：只用于放一份假锁，不碰仓内文件。 */

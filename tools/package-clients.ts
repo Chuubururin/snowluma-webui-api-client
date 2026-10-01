@@ -13,7 +13,7 @@ import { copyFileSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync 
 import { dirname, join, resolve } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { isCliEntry } from './lib/cli.js';
-import { ARTIFACT_DIRS, BANNER } from './lib/client-artifact.js';
+import { ARTIFACT_DIRS, ARTIFACT_ROOT, BANNER } from './lib/client-artifact.js';
 import { artifactDir, buildStagingPlan, missingPrerequisites, requiredFiles, type StagePlan } from './lib/client-staging.js';
 
 interface Doc {
@@ -99,12 +99,20 @@ async function buildTypeScriptArtifact(root: string): Promise<void> {
     console.error(`类型声明产出失败（tsc -p tsconfig.build.json 退 ${d.status}）：\n${d.stdout ?? ''}${d.stderr ?? ''}`);
     process.exit(1);
   }
+  // package.json 声明的入口必须真的落盘：tsc 在部分配置下会"退出 0 但什么也没写"，
+  // 那时缺件要等到出口闸装包才现形（慢且归因远），在这里点名代价最低。
+  const notEmitted = ['dist/index.js', 'dist/index.d.ts'].filter((f) => !existsFile(join(dir, f)));
+  if (notEmitted.length) {
+    console.error(
+      `TS 工件的声明入口未落盘：${notEmitted.map((f) => `typescript/${f}`).join('、')} —— ` +
+        'package.json 的 main/types/exports 指向空文件，消费者装上是"装得上但 import 不到"。',
+    );
+    process.exit(1);
+  }
 }
 
 if (isCliEntry(import.meta.url, process.argv[1])) {
-  const outIdx = process.argv.indexOf('--out');
-  const root = outIdx >= 0 ? process.argv[outIdx + 1] : 'dist/clients';
-  const plan = buildStagingPlan({ version: contractVersion(), anchor: anchorCommit() }, root);
+  const plan = buildStagingPlan({ version: contractVersion(), anchor: anchorCommit() }, ARTIFACT_ROOT);
 
   const missing = missingPrerequisites(plan);
   if (missing.length) {

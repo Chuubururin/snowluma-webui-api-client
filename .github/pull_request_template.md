@@ -11,7 +11,7 @@
 ## 提交前检查
 
 - [ ] 本 PR 聚焦单一目标，未夹带无关改动
-- [ ] `npm run verify:all` 本地全绿（9 条离线门禁；动了流端点/生成面时不得以 skip 充数）
+- [ ] `npm run verify:all` 本地全绿（全部离线门禁；动了流端点/生成面时不得以 skip 充数）
 - [ ] 动了 `spec/openapi.yaml`：已跑全量 `npm run generate` 重建三语产物（否则 probe 血统收据红）
 - [ ] 动了 demo 面：`npm run typecheck:demo` 与 `npm run ui-coverage` 绿；新控件有 parity 边或 declination 记录
 - [ ] 文件行尾为 LF（未引入 CRLF）

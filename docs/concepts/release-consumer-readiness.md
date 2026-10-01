@@ -9,7 +9,7 @@
 
 这条不是修辞。下面每一条都是实测出来的，且都躲在"全绿"后面。
 
-## 1. 被抓到的七处出口缺陷
+## 1. 被抓到的八处出口缺陷
 
 | 缺陷 | 位置 | 为什么既有门禁看不见 |
 | --- | --- | --- |
@@ -20,14 +20,18 @@
 | 干净克隆里 `npm run generate` 的 Go 腿 ENOENT，而它印的"恢复动作"写死作者机器路径 | `tools/gen/run.ts`、`tools/lib/go-toolchain.ts` | 开发终端早年 export 过 PATH；`test:go-adapter` 只借 GOROOT，`oapi-codegen` 其实落在 `<GOPATH>/bin` |
 | 新克隆的 `generated/go` 没有 `go.sum`（`go mod init` 不写它） | `tools/gen/run.ts` 的模块初始化 | `adapters/go/go.mod` 把 indirect 依赖全列了 ⇒ 仓内构建替生成模块兜底；工件以生成模块为真源，一装就 missing go.sum entry |
 | TS 适配层按"运行时文件的上一级"读规则表，装包后无处可读 | `adapters/typescript/rules.ts` 的默认解析 | 仓内那份表永远在 `adapters/` 上一级 ⇒ 每次测试都命中，走出仓就 ENOENT |
+| 三份 README 都写"见同目录 `provenance.json`"，工件里根本没有这件；而唯一的相关断言拿 README 散文自己当尺子 | `tools/lib/client-templates.ts` 的出处段 + `package.json` 的 `files` 白名单 | 计划成员断言与散文断言同时成立 —— 只有"装好之后的字节"这一面没人看过（评审复查抓到，不是冷克隆） |
 
 前四条已修（改成按模块自身位置解析、包内 sibling 优先；第四条不是"修 replace"，而是
-**合并成同一个 module 让它消失**）。后两条是**冷克隆实测**抓到的——把它们单列出来是因为
+**合并成同一个 module 让它消失**）。第 5、6 条是**冷克隆实测**抓到的——把它们单列出来是因为
 它们不在"交付物内容"里，而在"交付物怎么被生产出来"里：只有在一次干净克隆按
 [installation.md](../getting-started/installation.md) 逐步重跑时才现形。
 现在的处置：Go 腿自己按 `tools.lock.json` + `go env GOPATH` 推导工具链并前置进子进程 PATH，
 提示只印推导结果或安装动作；生成后 `go mod tidy` 补 require 与 `go.sum`，
 打包器缺任一件都点名拒收，不再留裸 ENOENT。
+第 8 条的处置：血统收据进三份工件（`copyFrom generated/.provenance.json`，缺就点名拒收）、
+进 `files` 白名单，并把断言改成两件事——README 指向的件必须是计划成员，
+且必须在**装好的包目录**里存在（`npm pack` 出来的 tgz 才算交付物本体）。
 
 第七条不在原计划里，是出口闸第一次真跑抓到的。处置是打包期内嵌规则表
 （真源仍是 `adapters/rules.json`，内嵌副本按 `RulesTable` 受 tsc 检，相等性有断言钉住），
@@ -93,8 +97,8 @@ UTC 时刻只承担防重复发布的职责，不表达版本语义；上游锚�
 
 | 层 | 断言 | 抓住的失效 |
 | --- | --- | --- |
-| 装得上 | `npm install ./dir`、`python -m venv` + `pip install ./dir`、`go work init`（复制工件而非原地引用） | 布局与路径耦合 |
-| 入口对 | `package.json` 声明的 `main`/`types`/`exports` 文件必须真实存在 + 已装版本 == 契约版本 + 承诺符号从包名可达 + 以 bundler 形态 tsc 过示例；`pyproject` 的包名与 `importlib.metadata` 版本；`go list -m` 与"go.mod 不得含 replace" | 文件都在、能编译，但消费者实际 import 的路径不对 |
+| 装得上 | TS：`npm pack` 出 tgz 再 `npm install <tgz>`（目录安装实测是**符号链接**，`files` 白名单永远走不到）；Python：`python -m venv` + `pip install ./dir`；Go：`go work init`（复制工件而非原地引用） | 布局与路径耦合；"计划里有、装完没有" |
+| 入口对 | `package.json` 声明的 `main`/`types`/`exports` 文件必须真实存在 + README 里每条"见同目录 X"承诺的件都在**装好的包目录**里 + 已装版本 == 契约版本 + 承诺符号从包名可达 + 以 bundler 形态 tsc 过示例；`pyproject` 的包名与 `importlib.metadata` 版本；`go list -m` 与"go.mod 不得含 replace" | 文件都在、能编译，但消费者实际 import 的路径不对；或安装说明指向包里根本没有的文件 |
 | 用得动 | 三语示例真跑，断言各自的 OK 标记 | 交付物里的行为层接不上 |
 
 放置：
@@ -111,10 +115,31 @@ UTC 时刻只承担防重复发布的职责，不表达版本语义；上游锚�
   所以"能编译"不是入口判据，必须显式核对声明的文件真实存在。
 - **go build 会忽略自替换**：把 `replace … => ../../generated/go` 塞回工件的 `go.mod`，编译照样绿。
   所以"带不出仓的路径配置"要靠明文断言，不能靠编译结果。
+- **断言不许拿被检对象自己当尺子**：`README 必须含 requiredReadmeSections() 里的每一段` 这种写法，
+  把模板里的「版本与出处」删掉后两边一起缩小 —— 变异实测 31 条用例全绿。合同（四段名单）
+  现在写死在测试里，模板只许满足它。
+- **计划成员 ≠ 装好的字节**：`provenance.json` 一度在计划里、在 `dist/clients/*` 目录里，
+  却不在 `package.json` 的 `files` 白名单里，而三份 README 都写着"见同目录 provenance.json"。
+  npm 只按白名单装包，所以目录安装全绿、装 tgz 就缺件。判据必须落在 shipped bytes 上。
 
-变异检验记录（每条都必须红）：`exports.types` 指空文件、Python 包内漏 `rules.json`、
-Go 放回 replace、Go 出现嵌套 `go.mod`、工件版本与契约版本不一致、TS 缺 `dist/index.js`。
-反向用例：删掉工件里的 `rules.json` 应**仍然绿**——证明行为不再依赖运行时文件位置。
+变异检验台账（每条先红后绿，红退出码非 0、恢复后为 0、恢复后源文件字节一致；
+由一次性脚本逐条执行，`spec/`、`adapters/` 只在做违例注入时临时改动并当场还原）：
+
+| 变异 | 点名的执法点 | 结果 |
+| --- | --- | --- |
+| `info.version` 改成两段 | `contract-version.test.ts` | 红 exit 1 → 绿 0 |
+| 一处 `copyFrom` 指向不存在的目录 | `client-staging.test.ts` 的搬运项存在性 | 红 exit 1 → 绿 0 |
+| 模板删掉一个必需 README 段 | `client-templates.test.ts` | 首轮**全绿**（自证式清单）→ 合同写死后红 exit 1 → 绿 0 |
+| `loadSpec` 退回 CWD 相对字面量 | `adapter-path-resolution.test.ts` 的异 CWD 子进程 | 红 exit 1 → 绿 0 |
+| Python 规则表删掉上一层兜底 | `adapters/python/test_rules_resolution.py` | 红 exit 1（1 failure + 1 error）→ 绿 0 |
+| 版本号抄回 release job | `workflow-pins.test.ts` | 红 exit 1 → 绿 0 |
+| posix job 少跑一步出口闸 | `workflow-pins.test.ts` 的步序相等 | 红 exit 1（"两条 job 步数不同：8 vs 9"）→ 绿 0 |
+| `envWithGo` 退回硬塞大写 `PATH` | `go-toolchain.test.ts` 的单键断言 | 红 exit 1 → 绿 0 |
+| 删掉 `exitCodeFor` 的 facility 分支 | `smoke-clients.test.ts` | 红 exit 1 → 绿 0 |
+| 从导航表摘掉一页 | `docs-index.test.ts` | 红 exit 1 → 绿 0 |
+| 把 `provenance.json` 从 npm `files` 白名单删掉 | `smoke:clients` 的"入口对"层（装好的包字节） | 红 exit 1，detail 点名白名单漏写 → 绿 0 |
+
+反向用例（证明判据不是恒红）：删掉工件里的 `rules.json` 应**仍然绿**——行为已不依赖运行时文件位置。
 
 ## 6. 支持面与跨平台
 
@@ -150,11 +175,12 @@ workflow 的 venv 引导收进 `npm run venv:bootstrap`（版本从 `tools.lock.
 | --- | --- | --- |
 | `tools/contract-version.test.ts` | vitest（在 `test` 门禁内） | `info.version` 非三段 semver；描述里重新长出计数或阶段自述 |
 | `tools/adapter-path-resolution.test.ts` | vitest | 适配层换 CWD 就读不到 spec；显式入参被废 |
-| `tools/client-staging.test.ts` | vitest | 工件缺件、metadata 版本与契约不符、嵌套 `go.mod`、缺 `go.mod`/`go.sum` 时不点名拒收、内嵌表与真源不等、声明的入口拼错 |
-| `tools/client-templates.test.ts` | vitest | README 散文与示例不同源、验收标记只存在于内嵌代码块、Python 两层抽象被混写 |
-| `tools/go-toolchain.test.ts` | vitest | 推导出的目录不存在、Go 腿没前置同一份推导结果（出现第二条认知）、PATH 键名被写成第二份、报错文本里出现具体机器路径 |
+| `tools/client-staging.test.ts` | vitest | 工件缺件、metadata 版本与契约不符、嵌套 `go.mod`、缺 `go.mod`/`go.sum` 时不点名拒收、`copyFrom` 源不存在、README 指向的件不在计划里、必发件清单被删薄、内嵌表与真源不等、声明的入口拼错 |
+| `tools/client-templates.test.ts` | vitest | README 散文与示例不同源、验收标记只存在于内嵌代码块、必需段被从模板删掉（合同写死在测试里）、Python 两层抽象被混写 |
+| `tools/go-toolchain.test.ts` | vitest | 推导出的目录不存在、Go 腿没前置同一份推导结果（出现第二条认知）、PATH 键名被写成第二份、报错文本里出现具体机器路径、需要 go 的入口绕过 envWithGo 自己拼 PATH |
+| `tools/workflow-pins.test.ts` | vitest | workflow 的执行行抄工具链版本号、留下 `go install …@vX`/`pip install …==` 抄本、调不存在的 npm 脚本、引导步排在 `npm ci` 之前、两条 OS job 的步序分叉 |
 | `tools/docs-index.test.ts` | vitest | 文档无人导航、相对链接死、`npm run` 指向不存在的脚本 |
-| `npm run smoke:clients` | 独立脚本（Release 前置闸 + CI） | 上面第 5 节的三层 |
+| `npm run smoke:clients` | 独立脚本（Release 前置闸 + CI） | 上面第 5 节的三层，含"README 承诺的同目录件必须在**装好的包**里" |
 
 这些都在源码树的门禁里，而源码树永远在作者机器上。**收尾判据因此多一条不属于任何门禁的**：
 把分支克隆进干净目录，按 `docs/getting-started/installation.md` 逐步重跑
