@@ -116,6 +116,34 @@ workflow 直接失败，不许以 issue 掩盖设施故障）。引擎把候选�
 血统收据三语同批，验收后测试 Release 连 tag 删除。
 合入闸经真实 PR 走通（绿 check → 人工审核 squash 落地）。
 
+**每日触发观察**：判据链的这次上线跑**不是** schedule 跑出来的——四条 workflow 至今
+没有任何 `event=schedule` 的 run（`gh run list --workflow upstream-sync.yml` 空、
+`gh workflow view upstream-sync.yml` 的 Total runs 为 0），首个每日 tick 缺席，
+故按观察口径以 `workflow_dispatch` 代跑一次补飞。
+
+- 判定：`VERDICT_KIND=no-change`，candidate 与 `spec/anchor.json` 的 `commit` 同值。
+- 副作用面：无 PR、无 issue、`auto/upstream-sync` 分支不在远端——与 no-change 的
+  互斥分流相符（四个出口步骤全 `skipped` 是**正确**分流，不是漏跑）。
+- 这次判定只覆盖短路面：`tools/upstream-sync.ts` 在 `candidate === current.commit`
+  时直接返回，一个字节都不拉。所以真正被验证到的是 `probeHeadSha()`（GitHub API 取
+  上游 main HEAD）与 CLI→workflow 的取种、分流；`httpFetcher`、`buildAnchorFromDir`
+  与 `classify()` 的三层比较未被触及。要摸到它们只能等上游真的动，或 dispatch 时显式
+  传一个历史候选 SHA。
+- 代跑不算首航：`17 3 * * *` 这条每日触发本身仍未被观察到，RoadMap 的观察项因此保留。
+
+## 编排层一处未修的保证错位
+
+「判定」步写作 `npx tsx tools/upstream-sync.ts … | tee verdict.log`，而 GitHub 默认
+shell 是 `bash -e`（run 日志的 `shell:` 行可证），**没有** `pipefail`。
+本机复现：`node -e 'process.exit(2)' | tee /dev/null; echo $?` → `0`。
+后果：exit 2 让「判定」步保持绿，`kind` 与 `sha` 两个输出取成空串也不报错
+（`echo "x=$(失败命令)"` 的退出码是 `echo` 的）；红点实际落在下一步「摘要」的
+`head -c 60000 verdict.json`——文件没写，非零，`bash -e` 才中断。
+净效果仍然满足顶部那句承诺（job 红、PR/issue 一步都不开，因为它们的 `if:` 按 `kind`
+匹配，空串一条都不命中），但**保证来自后面那步恰好读了缺失文件，不是来自 exit 码本身**。
+哪天「摘要」步改成不直接 `head` 这个文件，这条"设施故障必红"就静默失效。
+修法是一行 `set -o pipefail`，属改执法点、要配变异检验，故未随手改，登记在 RoadMap。
+
 ## 明确不做
 
 - L4 活夹具不进 CI（真实例与口令的边界不动）。
