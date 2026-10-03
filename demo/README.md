@@ -71,7 +71,7 @@ demo/
 `check-vocabulary.test.ts`。它**不跑** `npm test` / `ui-coverage` / `drift`：那三条要读
 `vendor/upstream` 与 `generated/python|go`，而两者都不入库，冷克隆里必然红（本机把 `vendor/`
 与 python/go 产物挪走后实测：`ui-coverage` 的断言 2 解不到 17 条 Tier A 出处，`npm test` 有
-5 个文件 77 条用例栽在 `upstream-guards` 的 ENOENT）。**九条离线门禁的全量链由另一条
+一批文件整片栽在 `upstream-guards` 的 ENOENT）。**离线门禁全量链由另一条
 workflow `verify.yml` 每次 push/PR 强制**（同为冷克隆，先按锚点重拉 vendor）；
 要连 L4 活体一起跑就在本机 `npm run verify:all -- --fixture`。
 
