@@ -78,7 +78,7 @@ jobs:
       - name: 绿类：开 PR（只含 spec/anchor.json）
         if: steps.verdict.outputs.kind == 'green-advance' && !inputs.dry_run
         id: pr
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           branch: auto/upstream-sync

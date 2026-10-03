@@ -41,7 +41,7 @@ jobs:
 
       - name: Open PR if artifacts changed
         if: success()
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         with:
           commit-message: 'chore: regen demo vocabulary from spec update'
           title: 'chore: regen demo vocabulary from spec update'
