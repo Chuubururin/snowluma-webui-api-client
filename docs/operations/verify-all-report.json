@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-03T07:02:30.538Z",
-  "gitHead": "93fe65d62a2a9615603bbb514f1eb29286b2e725",
+  "generatedAt": "2026-10-03T07:32:25.757Z",
+  "gitHead": "ae72da1bc4d70df0da9faba71e317d1293564c0f",
   "fixture": false,
   "results": [
     {
@@ -8,7 +8,7 @@
       "npmScript": "test",
       "exit": 0,
       "ok": true,
-      "tail": "✓ adapters/typescript/live.test.ts (10 tests | 9 skipped) 3ms / ↓ tools/demo-fixture.test.ts (5 tests | 5 skipped) / Test Files  66 passed | 3 skipped (69) / Tests  850 passed | 32 skipped (882) / Start at  15:02:13 / Duration  10.38s (tests 54%, import 27%, environment 12%, transform 5%, worker 1%) / Isolate  69 worke"
+      "tail": "✓ adapters/typescript/live.test.ts (10 tests | 9 skipped) 5ms / ↓ tools/demo-fixture.test.ts (5 tests | 5 skipped) / Test Files  66 passed | 3 skipped (69) / Tests  850 passed | 32 skipped (882) / Start at  15:32:08 / Duration  11.08s (tests 55%, import 27%, environment 12%, transform 5%, worker 1%) / Isolate  69 worke"
     },
     {
       "id": "validate",
