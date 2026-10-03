@@ -33,7 +33,7 @@ jobs:
     steps:
       # fetch-depth: 0 是量具前提而非性能选项：默认浅克隆不拉 tag，
       # tools/governance-docs.test.ts 里"CHANGELOG 的 tag 链接必须可解析"那条断言会因此把每条链接判死。
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -109,7 +109,7 @@ jobs:
     steps:
       # fetch-depth: 0 是量具前提而非性能选项：默认浅克隆不拉 tag，
       # tools/governance-docs.test.ts 里"CHANGELOG 的 tag 链接必须可解析"那条断言会因此把每条链接判死。
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
