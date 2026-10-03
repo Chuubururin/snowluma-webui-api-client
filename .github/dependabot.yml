@@ -10,11 +10,20 @@ updates:
         update-types: [minor, patch]
     open-pull-requests-limit: 5
 
-  # workflow 自身的 action 版本漂移
+  # workflow 自身的 action 版本漂移。
+  # 分组不是审美问题，是这批漂移的真实代价：不分组时一次漂移开出五只 PR，改的是同四个 workflow
+  # 里彼此相邻的 `uses:` 行——任何一只先合，其余的 hunk 上下文就变了，必须逐个 rebase 再等一轮 CI；
+  # 而本仓禁用 auto-merge（红类判断属人工），"rebase 后自动合"这条省不掉人工审核，只省掉了机器排队。
+  # action 版本行是机械事实、且每只 PR 的 verify/verify-posix 就是拿**新 tag 跑出来的**（真执行 ≠ 真解析），
+  # 所以一批一只是更低的审阅成本，不是更高的。
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    groups:
+      actions-batch:
+        patterns:
+          - '*'
 
   # Go 侧依赖：真清单在 adapters/go/go.mod（3 个 require，含 oapi-codegen runtime）。
   # 这一项是补漏：原先只声明了 npm / github-actions / pip，Go 腿的依赖漂移没有任何自动发现面。
