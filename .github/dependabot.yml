@@ -1,0 +1,26 @@
+version: 2
+updates:
+  # 应用依赖与开发依赖：周更一批，安全补丁不压批
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+    open-pull-requests-limit: 5
+
+  # workflow 自身的 action 版本漂移
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+
+  # .venv-gen 里 openapi-python-client 的版本由 tools.lock.json 钉死（生成器换代 =
+  # 生成面变更 = 必须过全链门禁），不交给 dependabot 自动升。
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    ignore:
+      - dependency-name: openapi-python-client

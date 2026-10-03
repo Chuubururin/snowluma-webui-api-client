@@ -47,8 +47,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -o pipefail
           ARGS=()
           if [ -n "${{ inputs.candidate }}" ]; then ARGS=(--candidate "${{ inputs.candidate }}"); fi
+          # pipefail 不是装饰：管道右侧的 tee 永远退出 0，没有它判定步 exit 2（设施故障）
+          # 会被吞成绿——RoadMap 台账登记过这个缺陷，变异检验证据见 docs/concepts/upstream-sync.md。
           npx tsx tools/upstream-sync.ts "${ARGS[@]}" --json verdict.json | tee verdict.log
           echo "kind=$(grep -o 'VERDICT_KIND=.*' verdict.log | cut -d= -f2)" >> "$GITHUB_OUTPUT"
           echo "sha=$(jq -r '.candidate // .anchor.commit' verdict.json)" >> "$GITHUB_OUTPUT"

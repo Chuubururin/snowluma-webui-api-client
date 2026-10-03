@@ -131,7 +131,7 @@ workflow 直接失败，不许以 issue 掩盖设施故障）。引擎把候选�
   传一个历史候选 SHA。
 - 代跑不算首航：`17 3 * * *` 这条每日触发本身仍未被观察到，RoadMap 的观察项因此保留。
 
-## 编排层一处未修的保证错位
+## 编排层的保证错位（已修，2026-10 行业对标评审）
 
 「判定」步写作 `npx tsx tools/upstream-sync.ts … | tee verdict.log`，而 GitHub 默认
 shell 是 `bash -e`（run 日志的 `shell:` 行可证），**没有** `pipefail`。
@@ -142,7 +142,20 @@ shell 是 `bash -e`（run 日志的 `shell:` 行可证），**没有** `pipefail
 净效果仍然满足顶部那句承诺（job 红、PR/issue 一步都不开，因为它们的 `if:` 按 `kind`
 匹配，空串一条都不命中），但**保证来自后面那步恰好读了缺失文件，不是来自 exit 码本身**。
 哪天「摘要」步改成不直接 `head` 这个文件，这条"设施故障必红"就静默失效。
-修法是一行 `set -o pipefail`，属改执法点、要配变异检验，故未随手改，登记在 RoadMap。
+
+**已修**：「判定」步加 `set -o pipefail`，保证回归 exit 码本身。变异检验（本机，
+模拟判定步 exit 2）：
+
+```
+变异体（摘掉 pipefail）：
+  (npx tsx -e "process.exit(2)" | tee /tmp/verdict.log; echo "变异体退出码=$?")
+  → 变异体退出码=0        ← 设施故障被吞，缺陷复现
+原体（有 pipefail）：
+  (set -o pipefail; npx tsx -e "process.exit(2)" | tee /tmp/verdict.log; echo "原体退出码=$?")
+  → 原体退出码=2          ← 设施故障必红，执法生效
+```
+
+RoadMap 台账对应行已销。
 
 ## 明确不做
 
