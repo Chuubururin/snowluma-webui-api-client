@@ -35,8 +35,11 @@
 - PR/push：`.github/workflows/verify.yml` 跑离线门禁全链（含契约校验、漂移对账、证据脱敏扫描；
   清单与条数以 `tools/verify-all.ts` 的 `GATES` 为准，本页不抄数字）。
 - 供应链：`.github/workflows/security-posture.yml` 在每次 PR 与每日定时核依赖漏洞
-  （`npm audit` + Dependabot 告警汇总 + PR 新增依赖审查）。它刻意**不并进** `verify:all`：
+  （`npm audit` + PR 新增依赖审查）。它刻意**不并进** `verify:all`：
   那条链的性质是离线可跑，而这几条要出网。
+  开放告警**没有** CI 汇总腿：`dependabot/alerts` 在 workflow 自带 token 下结构性读不到（403），
+  详见 [安全姿态页](docs/operations/security.md) 那一节 —— 把它写进 workflow 只会得到一条天天红、
+  人人都学会忽略的腿。
 - 每日：`upstream-sync.yml` 探测上游，锚点变更走人工审核，不自动合入。
 - 依赖更新：dependabot 三条生态（npm / GitHub Actions / gomod，清单见 `.github/dependabot.yml`）
   周更，且 Dependabot 安全更新已开启。原先这里写的是 pip —— 那是条**声明了但不生效**的面：
@@ -49,6 +52,7 @@
   | 密钥扫描与 push 保护已开 | `gh api repos/<owner>/<repo> -q .security_and_analysis` |
   | 依赖漏洞告警已开 | `gh api repos/<owner>/<repo>/vulnerability-alerts --include`（期望 204） |
   | Dependabot 安全更新已开 | `gh api repos/<owner>/<repo> -q .security_and_analysis.dependabot_security_updates.status` |
+  | 当前开放告警有几条（**要真实凭据**：workflow 自带 token 跑这条必 403） | `gh api "repos/<owner>/<repo>/dependabot/alerts?state=open" --jq length` |
   | required check 只有 `verify` | `gh api repos/<owner>/<repo>/branches/main/protection -q .required_status_checks.contexts` |
 
 ## 凭据纪律（对贡献者）

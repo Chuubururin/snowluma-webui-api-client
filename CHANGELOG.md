@@ -18,8 +18,9 @@
   逐条操作清单不再手写。
 - `npm run test:py-adapter` 改由 `tools/run-py-tests.ts` 用 `unittest discover` 现出测试文件；
   发现面为空按设施故障退 1。
-- `.github/workflows/security-posture.yml`：PR 与每日跑 `npm audit`、Dependabot 告警汇总与
-  新增依赖审查。刻意独立于 `verify:all`（那条链的性质是离线可跑）。
+- `.github/workflows/security-posture.yml`：PR 与每日跑 `npm audit`（high 及以上即红）与
+  PR 新增依赖审查。刻意独立于 `verify:all`（那条链的性质是离线可跑）。
+  它起初还带一条"Dependabot 告警汇总"腿，那条腿结构性不可能工作，见 Fixed。
 - 发布链新增回读校验：从 Release 下载已上传资产，逐条核对 `SHA256SUMS.txt`。
 - 契约补全分面声明：原先五个 tag 在 operation 上使用却未在顶层 `tags` 声明，现在十个都声明并各带一句
   职责描述；`validate-spec` 加 `UNDECLARED_TAG` / `UNUSED_TAG` / `TAG_DUPLICATE` / `TAG_ENTRY_INVALID`。
@@ -45,6 +46,14 @@
   `go install …@版本` 形状）改为指向 workflow 真源；Release tag 形状在两页文档里补齐契约版本段。
 - `AGENTS.md` 关于活体目标的口径收紧：离线门禁不发 HTTP，活体只在 `--fixture` 下起环回夹具。
 - 根级 `spike/` 的预研记录挪进 `docs/concepts/` 并挂上导航（原先是无人导航的跟踪文档）。
+- `security-posture.yml` 的 Dependabot 告警汇总步在 CI 里回 403，且**授权位不是缺的那一环**：
+  补上 `security-events: read` 后 runner 打印 `SecurityEvents: read`，端点仍回
+  `Resource not accessible by integration`。该步已删（留着它就是一条人人该忽略的红），
+  并由 `tools/dead-control.test.ts` 的禁令表钉住不许凭"加了权限"把它请回来；
+  禁令表每条自带命中正例，防的是禁令正则写坏成空转。
+- `verify` 两条 job 的默认浅克隆不拉 tag，于是"CHANGELOG 的 tag 链接必须可解析"那条断言
+  的量具在 CI 里是空集——每条链接都判死，报出来像"文档全烂"、实际是"没有可比对象"，
+  而这两者的恢复动作完全相反。现补 `fetch-depth: 0`，并让门禁自己区分这两种红。
 
 ## [0.1.0] — 首个公开基线
 

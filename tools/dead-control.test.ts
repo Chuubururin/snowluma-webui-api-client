@@ -62,13 +62,19 @@ const WRITE_SCOPES: { uses?: RegExp; run?: RegExp; needs: Record<string, string>
 ];
 
 /**
- * 需要**读**权限才能拿到数据的调用 → 缺 scope 时平台给的不是空集而是 403。
- * 这条表存在的理由是一次真实故障：`dependabot/alerts` 在只有 `contents: read` 的 job 里
- * 返回 HTTP 403，而按本仓口径"取不到数据"判设施红 —— 门禁咬对了，但如果没有这条表，
- * 下一个人看到的红是"扫描腿挂了"，最省事的处置就是把那步软成打印一行字。
+ * 结构性拿不到数据的平台调用 → 禁止出现在 workflow 里。注意与上面那张表的方向相反：
+ * WRITE_SCOPES 判"该给的权限给了没"，这里判"给了权限也不可能有数据"。
+ * 每条必须自带 `bites_on`（当年真红过的那段步骤原文）：一条从不命中的禁令正则和没有禁令等价，
+ * 而这条断言无法用"CI 里恰好没命中"来证明自己在执法，所以判据落在合成正例上。
  */
-const READ_SCOPES: { run: RegExp; needs: Record<string, string> }[] = [
-  { run: /gh\s+api\b[^\n]*dependabot\/alerts/, needs: { 'security-events': 'read' } },
+const INERT_PLATFORM_CALLS: { run: RegExp; bites_on: string; why: string; instead: string }[] = [
+  {
+    run: /gh\s+api\b[^\n]*dependabot\/alerts/,
+    bites_on: 'gh api "repos/$REPO/dependabot/alerts?state=open&per_page=100" --paginate',
+    why: 'workflow 自带的 GITHUB_TOKEN 读不到：端点回 403 "Resource not accessible by integration"。' +
+      '授权位不是缺的那一环 —— 实测加上 security-events: read 后 runner 打印 SecurityEvents: read，端点仍 403。',
+    instead: 'npm audit（工装依赖面）+ dependency-review-action（PR 新增依赖面）+ 用真实凭据人肉读回，命令见 SECURITY.md',
+  },
 ];
 
 function permissionsMap(p: Job['permissions']): Record<string, string> {
@@ -117,30 +123,32 @@ describe('声明即生效（inert 控制一律红）', () => {
     expect(offenders, `结构性不可能完成的写动作：\n${[...new Set(offenders)].join('\n')}`).toEqual([]);
   });
 
-  it('要读平台数据才算数的步骤，必须自己声明读权限（403 不是"零条告警"）', () => {
+  it('结构性读不到的平台调用不许当扫描腿（天天 403 的门禁比没有门禁更坏：它教会所有人忽略红）', () => {
     const offenders: string[] = [];
-    let matched = 0;
     for (const f of workflowFiles) {
       const doc = parse(readFileSync(join(WF_DIR, f), 'utf8')) as WfDoc;
       for (const [jobName, job] of Object.entries(doc.jobs ?? {})) {
-        const scopes = effectiveScopes(doc, job);
         for (const step of job.steps ?? []) {
           if (!step.run) continue;
-          for (const rule of READ_SCOPES) {
-            if (!rule.run.test(step.run)) continue;
-            matched++;
-            for (const [key, want] of Object.entries(rule.needs)) {
-              if (!scopeSatisfied(scopes, key, want)) {
-                offenders.push(`${f}#${jobName} 要读 ${key}（${rule.run.source}）但未授予 → 该步必然 403`);
-              }
+          for (const rule of INERT_PLATFORM_CALLS) {
+            if (rule.run.test(step.run)) {
+              offenders.push(`${f}#${jobName}：${rule.why} 替代面 → ${rule.instead}`);
             }
           }
         }
       }
     }
-    // 空集不算通过：删掉扫描步或改掉端点，这条断言就静默空转。
-    expect(matched, '没有任何步骤命中 READ_SCOPES，这条门禁在空转').toBeGreaterThan(0);
-    expect(offenders, `声明了要扫但读不到数据的腿：\n${[...new Set(offenders)].join('\n')}`).toEqual([]);
+    expect(offenders, `写进了 workflow 的结构性死腿：\n${[...new Set(offenders)].join('\n')}`).toEqual([]);
+  });
+
+  it('禁令表自己不许空转：每条都要有能命中当年那段步骤的正例', () => {
+    expect(INERT_PLATFORM_CALLS.length, '禁令表为空 = 这条门禁不存在').toBeGreaterThan(0);
+    const weak: string[] = [];
+    for (const rule of INERT_PLATFORM_CALLS) {
+      if (!rule.run.test(rule.bites_on)) weak.push(`${rule.run.source} 命不中自己的正例（写坏了的正则等于没禁令）`);
+      if (!rule.why || !rule.instead) weak.push(`${rule.run.source} 缺 why/instead（下一个人无法判断该不该豁免）`);
+    }
+    expect(weak, `咬不动的禁令：\n${weak.join('\n')}`).toEqual([]);
   });
 
   it('dependabot 声明的每个生态都要在该 directory 有可解析清单（跟踪在 git 里才算）', () => {

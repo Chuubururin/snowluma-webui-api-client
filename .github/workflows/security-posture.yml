@@ -18,10 +18,11 @@ on:
 
 permissions:
   contents: read
-  # dependabot/alerts 端点要这个 scope。缺它不是"没有告警"而是 HTTP 403——
-  # 下面的门禁按设计把"取不到数据"判成设施红，所以这条腿会红而不是假绿（首次 CI 运行即实测）。
-  security-events: read
-
+  # 这里**没有** Dependabot 告警汇总步，而且不是暂时缺的：`GET /repos/{o}/{r}/dependabot/alerts`
+  # 在 workflow 自带的 GITHUB_TOKEN 下结构性不可读。实测过 `security-events: read` 确实授予
+  # （runner 打印 SecurityEvents: read），端点仍回 HTTP 403 "Resource not accessible by
+  # integration"——授权位不是它缺的那一环。所以这条腿按"声明了但不生效"删掉，不要凭加权限把它请回来
+  # （判据与替代面见 docs/operations/security.md 与 tools/dead-control.test.ts 的禁面表）。
 
 concurrency:
   group: security-posture-${{ github.ref }}
@@ -49,28 +50,6 @@ jobs:
           set -o pipefail
           # pipefail 让 `| tee` 右侧不会把红洗成绿：管道取的是最左非零码。
           npm audit --audit-level=high | tee audit.txt
-
-      - name: Dependabot 告警汇总（critical/high 未处理即红）
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO: ${{ github.repository }}
-        run: |
-          set -o pipefail
-          QUERY='[.[] | select(.security_advisory.severity=="critical" or .security_advisory.severity=="high")] | length'
-          # 取不到数据（开关被关、权限不够、端点 404）就是设施故障：gh api 非零码 + pipefail 会让这步红，
-          # 而不是打印"0 条"充当干净。
-          gh api "repos/$REPO/dependabot/alerts?state=open&per_page=100" --paginate \
-            --jq '.[] | "\(.security_advisory.severity)\t\(.dependency.package.name)"' | head -50
-          total=0
-          while read -r n; do total=$((total + n)); done < <(
-            gh api "repos/$REPO/dependabot/alerts?state=open&per_page=100" --paginate --jq "$QUERY"
-          )
-          echo "critical/high 开放告警合计：$total"
-          if [ "$total" -ne 0 ]; then
-            echo "有高危以上 Dependabot 告警未处理 —— 处置入口是它自动开的安全更新 PR，或显式裁定并把豁免写进 docs/operations/security.md" >&2
-            exit 1
-          fi
 
   pr-dependency-review:
     # 只审 PR 引入的**新增**依赖：schedule 触发时没有 base 可比，这步就跑不起来。
