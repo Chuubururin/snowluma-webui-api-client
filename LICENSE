@@ -1,0 +1,37 @@
+SnowLuma WebUI API Client — 非商业自用许可
+==========================================
+
+版权所有（c）本仓库贡献者。
+
+第一条 定义
+- 「上游」指 SnowLuma WebUI 应用程序及其源码；「派生产物」指本仓库内一切直接或
+  间接抄录、转换、生成自上游的内容，包括但不限于 spec/、generated/ 产物、
+  adapters/ 的行为对齐实现、以及 docs/ 中对上游内部结构的引用与分析。
+- 「本仓库」指本许可所附的整个代码库及其 GitHub Release 工件。
+
+第二条 授权
+在遵守本许可全部条款的前提下，任何人可为**非商业的个人自用**目的：
+1. 在本地克隆、构建、运行与修改本仓库；
+2. 将本仓库的 GitHub Release 工件（三语 SDK 包）下载到本地安装使用；
+3. 修改后的版本仅限本人自用，不对外分发。
+
+第三条 限制
+1. **禁止商业使用**：不得将本仓库或派生产物用于任何商业目的。
+2. **禁止再分发**：不得将本仓库内容（含修改版）重新发布到代码托管平台、
+   包管理器（npm / PyPI / Go module registry）或任何公开渠道。
+3. **上游权利**：派生产物的全部底层权利归上游权利人（SnowLuma / Tencent / QQ）
+   所有；本许可不授予、也不暗示授予任何来自上游的权利。
+4. 本仓库与 SnowLuma / Tencent / QQ 无隶属或授权关系。
+
+第四条 免责
+本仓库按「现状」提供，不附带任何明示或默示的担保。适用法律允许的最大范围内，
+作者不对因使用本仓库产生的任何损害负责。
+
+第五条 与其他文件的关系
+- 口径细则与豁免表见 spec/NOTICE.md（该文件顺延覆盖 extracted/）。
+- 本许可与 spec/NOTICE.md、各文件头注「派生自 SnowLuma 源码 · 非商业自用 ·
+  不公开发版」口径一致；冲突时以更严格者为准。
+
+English summary (non-binding): Derived from SnowLuma sources. Personal,
+non-commercial use only; no redistribution; provided "as is", without warranty
+of any kind. See spec/NOTICE.md for details.

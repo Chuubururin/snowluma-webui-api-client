@@ -9,6 +9,9 @@
   <a href="#快速开始">快速开始</a> ·
   <a href="./docs/README.md">文档</a> ·
   <a href="./CONTRIBUTING.md">贡献</a> ·
+  <a href="./SECURITY.md">安全</a> ·
+  <a href="./CHANGELOG.md">更新日志</a> ·
+  <a href="./LICENSE">许可</a> ·
   <a href="https://github.com/Chuubururin/snowluma-webui-api-client/issues">问题反馈</a>
 </p>
 
