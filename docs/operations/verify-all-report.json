@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-03T05:37:04.997Z",
-  "gitHead": "296283b633a57044507ae644fb1f9a1cc399d1c8",
+  "generatedAt": "2026-10-03T07:02:30.538Z",
+  "gitHead": "93fe65d62a2a9615603bbb514f1eb29286b2e725",
   "fixture": false,
   "results": [
     {
@@ -8,7 +8,7 @@
       "npmScript": "test",
       "exit": 0,
       "ok": true,
-      "tail": "✓ adapters/typescript/live.test.ts (10 tests | 9 skipped) 5ms / ↓ tools/demo-fixture.test.ts (5 tests | 5 skipped) / Test Files  66 passed | 3 skipped (69) / Tests  850 passed | 32 skipped (882) / Start at  13:36:51 / Duration  8.17s (tests 57%, import 27%, environment 10%, transform 5%, worker 1%) / Isolate  69 worker"
+      "tail": "✓ adapters/typescript/live.test.ts (10 tests | 9 skipped) 3ms / ↓ tools/demo-fixture.test.ts (5 tests | 5 skipped) / Test Files  66 passed | 3 skipped (69) / Tests  850 passed | 32 skipped (882) / Start at  15:02:13 / Duration  10.38s (tests 54%, import 27%, environment 12%, transform 5%, worker 1%) / Isolate  69 worke"
     },
     {
       "id": "validate",
@@ -57,7 +57,7 @@
       "npmScript": "test:py-adapter",
       "exit": 0,
       "ok": true,
-      "tail": "> test:py-adapter / > tsx tools/run-py-tests.ts / ............................. / ---------------------------------------------------------------------- / Ran 29 tests in 0.005s / OK / 发现面：adapters/python 下 3 个测试文件（由目录决定，不是手抄）"
+      "tail": "> test:py-adapter / > tsx tools/run-py-tests.ts / ............................. / ---------------------------------------------------------------------- / Ran 29 tests in 0.006s / OK / 发现面：adapters/python 下 3 个测试文件（由目录决定，不是手抄）"
     },
     {
       "id": "test:go-adapter",
