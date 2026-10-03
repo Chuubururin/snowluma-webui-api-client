@@ -140,6 +140,9 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # 同上一条的口径：tag 也走 env，不内插进脚本。这个值来自上一步自己算出的字符串，
+          # 今天没有注入面，但"无害"依赖的是别的步骤的正则，而不是这一行能看懂的东西。
+          TAG: ${{ steps.pack.outputs.tag }}
         run: |
           $files = Get-ChildItem dist -File | ForEach-Object { $_.FullName }
-          gh release create "${{ steps.pack.outputs.tag }}" --title "SnowLuma clients ${{ steps.pack.outputs.tag }}" --notes-file body.md -- $files
+          gh release create $env:TAG --title "SnowLuma clients $env:TAG" --notes-file body.md -- $files

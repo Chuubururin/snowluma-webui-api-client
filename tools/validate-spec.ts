@@ -297,11 +297,18 @@ export function validateSpecDoc(doc: unknown, guards: SpecGuards = specGuards())
     }
   }
 
+  // 分面（tag）使用面：逐条 operation 收集，循环结束后与顶层 tags 声明双向核对。
+  const opTags = new Map<string, string[]>();
+
   for (const [path, ops] of Object.entries(paths)) {
     for (const method of METHODS) {
       const op = ops?.[method];
       if (!op || !isRecord(op)) continue;
       const where = `${method.toUpperCase()} ${path}`;
+      for (const t of Array.isArray(op.tags) ? op.tags : []) {
+        if (typeof t !== 'string' || t === '') continue;
+        opTags.set(t, [...(opTags.get(t) ?? []), where]);
+      }
       // 裁定 R19：spec 按 OpenAPI path templating 写 {uin}，tiers.ts 的键是 Express 的 :uin，
       // 比较前必须过唯一真源归一化——否则恰恰是最需要交叉核对的那几条端点静默退化成 UNCLASSIFIED_OP
       const specPath = normalizeParamForm(path);
@@ -489,6 +496,29 @@ export function validateSpecDoc(doc: unknown, guards: SpecGuards = specGuards())
           `本仓库 tools/validate-spec.test.ts 的 R22 内联用例就是这么红的`,
       ),
     );
+  }
+
+  // 分面声明 ↔ 使用双向核对。本仓实测漂过一回：十个 tag 在用、只有五个被声明，
+  // 而没有任何一面会响 —— 按域分组的消费端（文档、SDK 生成器的分组、agent 的工具筛选）
+  // 会遇到凭空出现的分面，反过来声明了却没人用的分面就是文档上的死条目。
+  const declaredTags = new Set<string>();
+  if (Array.isArray(d.tags)) {
+    for (const t of d.tags) {
+      if (!isRecord(t) || typeof t.name !== 'string' || t.name === '') {
+        issues.push(err('TAG_ENTRY_INVALID', `tags 项缺非空 name：${JSON.stringify(t)}`));
+        continue;
+      }
+      if (declaredTags.has(t.name)) issues.push(err('TAG_DUPLICATE', `tags 重复声明 ${t.name}`));
+      declaredTags.add(t.name);
+    }
+  }
+  for (const [name, seenAt] of [...opTags.entries()].sort()) {
+    if (!declaredTags.has(name)) {
+      issues.push(err('UNDECLARED_TAG', `${name} 被 ${seenAt.slice(0, 3).join(', ')}${seenAt.length > 3 ? ` 等 ${seenAt.length} 条` : ''} 使用，但顶层 tags 未声明`));
+    }
+  }
+  for (const name of [...declaredTags].sort()) {
+    if (!opTags.has(name)) issues.push(err('UNUSED_TAG', `顶层 tags 声明了 ${name}，却没有 operation 归入该分面`));
   }
 
   return issues;

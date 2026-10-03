@@ -24,6 +24,7 @@
 | 页面 | 回答什么 |
 | --- | --- |
 | [architecture.md](concepts/architecture.md) | 分层、模块边界（实测 import 矩阵）、单一真源清单、生成面/手写面判据 |
+| [codegen-spike.md](concepts/codegen-spike.md) | 生成链预研结论：三家工具各自的取舍，以及每个手写形状（Go 的 union 塌缩、Python 的 unwrap、TS 的规则表内嵌）为什么必须手写 |
 | [upstream-sync.md](concepts/upstream-sync.md) | 上游衔接与产物自动迭代流水线（判据表、PR/工单语义、Release 链） |
 | [release-consumer-readiness.md](concepts/release-consumer-readiness.md) | Release 工件的消费者就绪：合包形态、契约版本语义、出口闸三层与变异检验、支持面 |
 | [workflow.md](concepts/workflow.md) | 这个仓库"自己保持绿"的机制：门禁链、账本模型、提交纪律 |
@@ -40,6 +41,7 @@
 | 页面 | 回答什么 |
 | --- | --- |
 | [api.md](reference/api.md) | SnowLuma WebUI API 调用规范（55 操作、门控、错误码、流） |
+| [operations.gen.md](reference/operations.gen.md) | 逐条操作清单，由 `npm run gen:docs` 从契约现出（生成面，别手改） |
 | [commands.md](reference/commands.md) | 全部 npm 脚本、环境变量、生成器钉版本 |
 | [gates.md](reference/gates.md) | `verify:all` 的机器行为与报告格式 |
 

@@ -132,7 +132,7 @@ UTC 时刻只承担防重复发布的职责，不表达版本语义；上游锚�
 - **go build 会忽略自替换**：把 `replace … => ../../generated/go` 塞回工件的 `go.mod`，编译照样绿。
   所以"带不出仓的路径配置"要靠明文断言，不能靠编译结果。
 - **断言不许拿被检对象自己当尺子**：`README 必须含 requiredReadmeSections() 里的每一段` 这种写法，
-  把模板里的「版本与出处」删掉后两边一起缩小 —— 变异实测 31 条用例全绿。合同（四段名单）
+  把模板里的「版本与出处」删掉后两边一起缩小 —— 变异实测点名的用例全绿。合同（四段名单）
   现在写死在测试里，模板只许满足它。
 - **计划成员 ≠ 装好的字节**：`provenance.json` 一度在计划里、在 `dist/clients/*` 目录里，
   却不在 `package.json` 的 `files` 白名单里，而三份 README 都写着"见同目录 provenance.json"。
@@ -174,7 +174,7 @@ UTC 时刻只承担防重复发布的职责，不表达版本语义；上游锚�
 | macOS | 未验证 | 无 job。未验证 ≠ 不支持，但不要按支持面排期 |
 
 本机 WSL Ubuntu 实测到的事实（不是推断）：`fetch:upstream` 可用；补上 `generated/typescript` 后
-全量 vitest **789 条用例通过、0 条断言失败**；剩余唯一红是缺 `generated/go`（本机无 go 工具链，
+全量 vitest **通过、0 断言失败**（数以 `npm run test` 现出，本页不抄）；剩余唯一红是缺 `generated/go`（本机无 go 工具链，
 CI 里 generate 先跑）。同时抓到两条把 Windows 路径语义焊死在断言里的既有测试（已修）。
 venv 引导在本机撞出 `python3-venv` 缺失，报错点名了原因——这类"环境红"与"断言红"的区分口径见
 [troubleshooting.md](../guides/troubleshooting.md)。

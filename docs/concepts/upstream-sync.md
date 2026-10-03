@@ -108,7 +108,7 @@ workflow 直接失败，不许以 issue 掩盖设施故障）。引擎把候选�
   no-change），再真实新候选看实测分类。
 - Release 验收：dispatch 实发一次，下载核对 tarball 与 SHA256SUMS 后删除测试 Release。
 
-**首轮验收记录**：判据引擎 7 用例 fixture 全绿、四条变异逐一点名红
+**首轮验收记录**：判据引擎的 fixture 全绿、四条变异逐一点名红
 （其中一条首轮是**假变异**——`as any` 取不到字段恒 null，换真改行为的变体才红）；
 `upstream-sync` dispatch 干跑判定 `no-change`、零副作用；
 `release-clients` 首跑红（pwsh tag 展开实错，闸内前序全绿、**无半成品出厂**），修复后
@@ -131,7 +131,7 @@ workflow 直接失败，不许以 issue 掩盖设施故障）。引擎把候选�
   传一个历史候选 SHA。
 - 代跑不算首航：`17 3 * * *` 这条每日触发本身仍未被观察到，RoadMap 的观察项因此保留。
 
-## 编排层的保证错位（已修，2026-10 行业对标评审）
+## 编排层的保证错位（已修，行业对标评审那一轮）
 
 「判定」步写作 `npx tsx tools/upstream-sync.ts … | tee verdict.log`，而 GitHub 默认
 shell 是 `bash -e`（run 日志的 `shell:` 行可证），**没有** `pipefail`。

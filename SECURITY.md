@@ -8,9 +8,14 @@
 
 ## 报告漏洞
 
-1. **不要开公开 issue**：漏洞细节先私聊。仓库启用 GitHub 私密漏洞报告
-   （Security 标签页 → Report a vulnerability），或按 CONTRIBUTING.md 里的联系方式
-   联系维护者。
+1. **不要开公开 issue**：漏洞细节先进私密通道。
+   - 首选 GitHub 私密漏洞报告（仓库 Security 标签页 → *Report a vulnerability*）。
+     **本文件不声称它已启用**：该开关只能在仓库 Settings → Advanced Security 里看，
+     REST 侧读不到，因此属于仓库所有者的一次性动作（已登记在 [`RoadMap.md`](RoadMap.md)）。
+   - 兜底通道（当下唯一可执行的一条）：开一个**标题与正文都不含任何漏洞细节**的 issue，
+     标题写"安全问题：请提供私密通道"，正文只写受影响范围（如"生成面/适配层/CI 凭据链"）
+     与你的 GitHub 句柄。细节在私密通道建立之后再给——这条不依赖任何联系方式，
+     因为本仓不公开维护者的邮箱或 IM。
 2. 报告请带：复现步骤 / 受影响的门禁或文件 / 你判断的影响面。
 3. 修复窗口：确认后 7 天内出修复或给出临时缓解；修复提交按本仓惯例附
    「变异检验红/绿原文」。
@@ -23,14 +28,28 @@
 | --- | --- |
 | 安全姿态与已裁定豁免（SSRF 严格模式、口令留存取舍、L4 不进 CI 等） | [docs/operations/security.md](docs/operations/security.md) |
 | demo 明确放弃的 UX 项（含安全相关放弃项） | [demo/declinations.ts](demo/declinations.ts) |
-| 证据文件脱敏与已知残留（如 `::7f00:1` 废弃地址族） | [tools/redact-evidence.ts](tools/redact-evidence.ts) 头注 + evidence 文档各 § |
+| 证据文件脱敏与已知残留（如 `::7f00:1` 废弃地址族） | [tools/redact-evidence.ts](tools/redact-evidence.ts) 头注 + [docs/operations/security.md](docs/operations/security.md) 的"内嵌 IPv4 提取"一节 |
 
 ## 自动化防线
 
-- PR/push：`.github/workflows/verify.yml` 跑 9 条离线门禁（含契约校验、漂移对账、
-  证据脱敏扫描）。
+- PR/push：`.github/workflows/verify.yml` 跑离线门禁全链（含契约校验、漂移对账、证据脱敏扫描；
+  清单与条数以 `tools/verify-all.ts` 的 `GATES` 为准，本页不抄数字）。
+- 供应链：`.github/workflows/security-posture.yml` 在每次 PR 与每日定时核依赖漏洞
+  （`npm audit` + Dependabot 告警汇总 + PR 新增依赖审查）。它刻意**不并进** `verify:all`：
+  那条链的性质是离线可跑，而这几条要出网。
 - 每日：`upstream-sync.yml` 探测上游，锚点变更走人工审核，不自动合入。
-- 依赖更新：dependabot（npm / GitHub Actions / pip）周更，安全补丁不延迟。
+- 依赖更新：dependabot 三条生态（npm / GitHub Actions / gomod，清单见 `.github/dependabot.yml`）
+  周更，且 Dependabot 安全更新已开启。原先这里写的是 pip —— 那是条**声明了但不生效**的面：
+  仓内没有任何 pip 清单文件可解析，它只会持续产出失败的 update job（现由
+  `tools/dead-control.test.ts` 执法）。
+- 平台侧开关（本页每条都可复核，复核命令一并写出，免得日后又变成一句无源断言）：
+
+  | 主张 | 复核命令 |
+  | --- | --- |
+  | 密钥扫描与 push 保护已开 | `gh api repos/<owner>/<repo> -q .security_and_analysis` |
+  | 依赖漏洞告警已开 | `gh api repos/<owner>/<repo>/vulnerability-alerts --include`（期望 204） |
+  | Dependabot 安全更新已开 | `gh api repos/<owner>/<repo> -q .security_and_analysis.dependabot_security_updates.status` |
+  | required check 只有 `verify` | `gh api repos/<owner>/<repo>/branches/main/protection -q .required_status_checks.contexts` |
 
 ## 凭据纪律（对贡献者）
 

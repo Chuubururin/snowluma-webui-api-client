@@ -1,6 +1,10 @@
 name: Demo Regen
 on:
+  # 只管 main：这是"上游进了契约 → 重出词表"的收敛链。不带 branches 过滤时，
+  # 任何主题分支动 spec/ 或 tools/gen/ 都会排队跑一遍并从主题分支往 auto/regen-demo 推提交，
+  # 于是同一个词表会被不同分支各出一版 —— 生成面的真源应当只有一个。
   push:
+    branches: [main]
     paths: ['spec/openapi.yaml', 'tools/gen/**']
   workflow_dispatch:
 
@@ -8,12 +12,21 @@ on:
 # 它**不跑** npm test / npm run ui-coverage / npm run drift —— 那三条要读 vendor/upstream
 # 与 generated/python|go，而两者都不入库（.gitignore），冷克隆里必然红：
 # 本机实测（把 vendor 挪走后按步骤顺序跑）gen:demo ✓、typecheck:demo ✓、ui-coverage ✗（断言 2
-# 解不到 Tier A 出处）、npm test ✗（5 个文件 77 条用例，全是 upstream-guards 的 ENOENT）。
-# 九条离线门禁的全量链由 verify.yml 每次 push/PR 强制（冷克隆先按锚点重拉 vendor）；
+# 解不到 Tier A 出处）、npm test ✗（upstream-guards 一片 ENOENT）。
+# 离线门禁的全量链由 verify.yml 每次 push/PR 强制（条数以 tools/verify-all.ts 的 GATES 为准，
+# 这里不抄数字；冷克隆先按锚点重拉 vendor）；
 # L4 活体只能本机跑：npm run verify:all -- --fixture。
 jobs:
   regen:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # 这一整块是新加的：仓库默认 workflow 权限实测是 read（settings → actions → general），
+    # 而下面最后一步要把提交推出去并开 PR —— 没有这段授权，那一步**结构上不可能成功**。
+    # 它此前从未红过，只因触发条件一直没命中，于是"在役"这个印象是假的。
+    # 由 tools/dead-control.test.ts 执法：写动作必须有够得着的 permissions，不许依赖默认值。
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
 
@@ -52,5 +65,8 @@ jobs:
 
             只重出 `demo/vocabulary.gen.ts`。上游加一条操作后，完备性门禁会点名"这条操作没有归属"，
             人工要补的是 `demo/parity.ts` 的一条边或 `demo/declinations.ts` 的一条放弃记录 —— 不是清单文件。
+
+            审核提示：本 PR 由默认 GITHUB_TOKEN 开出，`verify` 不会自动跑（GitHub 的防自激规则）。
+            先推一个空提交（`git commit --allow-empty && git push`）把检查踢起来，绿了再合。
           branch: auto/regen-demo
           delete-branch: true

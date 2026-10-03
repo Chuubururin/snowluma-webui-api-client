@@ -8,6 +8,13 @@
 #   + 人工审核把关——本仓禁用 auto-merge，本 workflow 永不自合。
 # 装配前置（缺一处对应步骤会明确红而不是静默）：main 的 branch protection
 # 要求 `verify` 与 ≥1 次审批、label `upstream-sync`。
+#
+# 一条必须知道的落差：本 workflow 用默认 GITHUB_TOKEN 开 PR，而 GitHub 的防自激规则是
+# "由 GITHUB_TOKEN 触发的事件不再新建 workflow 运行"——所以这条自动 PR 上 **verify 永远不会自己出现**，
+# 上面那句"由 verify 冷克隆复验把关"要人工踢一脚才成立：审核人往该分支推一个空提交
+# （`git commit --allow-empty && git push`）即可让 pull_request 检查跑起来。
+# 这不是本文件的缺陷，是平台语义；写在这里是为了让"绿类 PR 一直 pending 不出检查"
+# 不再被误读成 CI 挂了。（要彻底自动化就得换 PAT 或 workflow_run 触发，已登记在 RoadMap。）
 name: upstream-sync
 
 on:
@@ -46,10 +53,13 @@ jobs:
         id: verdict
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # dispatch 输入是自由文本，直接内插进 `run:` 就是脚本注入面（本仓在 release-clients.yml
+          # 里已写下这条口径）。表达式一律先落到 env，再由脚本按变量读。
+          CANDIDATE: ${{ inputs.candidate }}
         run: |
           set -o pipefail
           ARGS=()
-          if [ -n "${{ inputs.candidate }}" ]; then ARGS=(--candidate "${{ inputs.candidate }}"); fi
+          if [ -n "${CANDIDATE:-}" ]; then ARGS=(--candidate "$CANDIDATE"); fi
           # pipefail 不是装饰：管道右侧的 tee 永远退出 0，没有它判定步 exit 2（设施故障）
           # 会被吞成绿——RoadMap 台账登记过这个缺陷，变异检验证据见 docs/concepts/upstream-sync.md。
           npx tsx tools/upstream-sync.ts "${ARGS[@]}" --json verdict.json | tee verdict.log
@@ -73,7 +83,8 @@ jobs:
         if: steps.verdict.outputs.kind == 'green-advance' && !inputs.dry_run
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx tsx tools/upstream-sync.ts --candidate "${{ steps.verdict.outputs.sha }}" --commit-anchor
+          CANDIDATE_SHA: ${{ steps.verdict.outputs.sha }}
+        run: npx tsx tools/upstream-sync.ts --candidate "$CANDIDATE_SHA" --commit-anchor
 
       - name: 绿类：开 PR（只含 spec/anchor.json）
         if: steps.verdict.outputs.kind == 'green-advance' && !inputs.dry_run
@@ -91,11 +102,16 @@ jobs:
             模型键集合与 spec 端点集合逐项与现锚相同（否则不会走这条分支，而是 issue 工单）。
             合入由 `verify` 冷克隆复验把关——它按新锚点 SHA 重拉 vendor，
             与本 workflow 不共享工作树：写锚点的人不给自己发通行证。
+            **但这条检查不会自动出现**：本 PR 由默认 GITHUB_TOKEN 开出，GitHub 的防自激规则
+            让 token 触发的事件不再新建运行。审核前先往本分支推一个空提交
+            （`git commit --allow-empty && git push`）把 `verify` 踢起来，绿了再合。
 
       - name: 绿类：开 PR 后等人工审核（本仓禁用 auto-merge，workflow 永不自合）
         if: steps.pr.outputs.pull-request-number != ''
+        env:
+          PR_URL: ${{ steps.pr.outputs.pull-request-url }}
         run: |
-          echo "绿类 PR 已开出：${{ steps.pr.outputs.pull-request-url }}"
+          echo "绿类 PR 已开出：$PR_URL"
           echo "合入条件 = verify 冷克隆复验绿 + 人工审核；本 workflow 不挂 auto-merge、不自己合。"
 
       - name: 红类：开/更新漂移工单（同一候选 SHA 幂等）
@@ -106,9 +122,9 @@ jobs:
            steps.verdict.outputs.kind == 'operation-set-drift')
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SHA: ${{ steps.verdict.outputs.sha }}
+          KIND: ${{ steps.verdict.outputs.kind }}
         run: |
-          SHA="${{ steps.verdict.outputs.sha }}"
-          KIND="${{ steps.verdict.outputs.kind }}"
           {
             echo "<!-- upstream-sync:${SHA} -->"
             echo

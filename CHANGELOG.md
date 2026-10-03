@@ -17,14 +17,16 @@
   destructive 闸门、规则引擎单源三实现），golden 夹具三语同题。
 - demo：七屏套壳控制台，55 条操作三分对账（生效 / 写而不生效 / 登记放弃），
   未登记缺口恒为 0。
-- 验证体系：L1–L4 四层测试（745+ 用例）、9 条离线门禁一键编排（`verify:all`）、
+- 验证体系：L1–L4 四层测试（用例数以 `npm run test` 现出，本页不抄）、离线门禁一键编排（`verify:all`，
+  清单与条数以 `tools/verify-all.ts` 的 `GATES` 为准）、
   L4 活夹具五条硬要求（本机）、变异检验台账。
 - CI：verify 主链（windows-latest 全工具链引导）、词表重生成开 PR、
   每日上游探测（零判断自动推进 + 红类开工单）、契约变更发三语 Release 工件。
 
 ### Security
 - SSRF 面硬化：`SNOWLUMA_STRICT_SSRF` 严格模式 + IPv4-mapped IPv6 归一化；
-  `classifyHost` 的已知残余（废弃 IPv4-compatible 形）登记于 evidence §21.2。
+  `classifyHost` 的已知残余（废弃 IPv4-compatible 形）登记在[安全姿态页](docs/operations/security.md)
+  的"内嵌 IPv4 提取"一节。
 - 证据脱敏防线：20 种凭据形状 + 逐形状幂等证明；`--check` 以「扫 0 份即红」防假绿。
 - 凭据纪律：口令/token 不进命令行、文件、提交与 CI 日志。
 
