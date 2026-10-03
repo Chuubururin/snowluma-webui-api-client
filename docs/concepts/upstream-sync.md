@@ -88,7 +88,8 @@ workflow 直接失败，不许以 issue 掩盖设施故障）。引擎把候选�
   + `spec/anchor.json` + `SHA256SUMS.txt` + NOTICE + 血统收据（**上传名不带点**：
   `generated/.provenance.json` 直传会被 gh 改名成 `default.provenance.json`，落 dist 时
   就重命名为 `provenance.json`——验收实测的坑，已在 workflow 里躲开）。
-- tag：`clients-<上游短7位>-<UTC时间戳>`（同锚点多 spec 迭代不撞名）。pwsh 里必须写 `$((Get-Date).ToUniversalTime().ToString(...))`
+- tag：`clients-<契约版本>-<上游短7位>-<UTC时间戳>`（契约版本是 `spec/openapi.yaml` 的 `info.version`；
+  带时间戳是为了同锚点多 spec 迭代不撞名）。pwsh 里必须写 `$((Get-Date).ToUniversalTime().ToString(...))`
   ——`$(Get-Date).ToUniversalTime()` 的方法调用部分会留成字面文本（首跑红就红在这）。
 - 权限仅 `contents: write`，无外部 secret。
 
@@ -116,18 +117,17 @@ workflow 直接失败，不许以 issue 掩盖设施故障）。引擎把候选�
 血统收据三语同批，验收后测试 Release 连 tag 删除。
 合入闸经真实 PR 走通（绿 check → 人工审核 squash 落地）。
 
-**每日触发观察**：判据链的这次上线跑**不是** schedule 跑出来的——四条 workflow 至今
-没有任何 `event=schedule` 的 run（`gh run list --workflow upstream-sync.yml` 空、
-`gh workflow view upstream-sync.yml` 的 Total runs 为 0），首个每日 tick 缺席，
-故按观察口径以 `workflow_dispatch` 代跑一次补飞。
+**每日触发观察**：`event=schedule` 的 run **已经有了**（`gh run list --workflow upstream-sync.yml --event schedule`
+非空即为本行判据），所以"每日自跑会不会真的跑"这一条不再是需要人工补飞才能观察的状态。
+本页原先写的"四条 workflow 至今没有任何 schedule run"是当时的事实、现在已不成立，
+留在这里只会让下一个读者按假前提排期 —— 改判据就顺手把旧断言撤掉。
 
-- 判定：`VERDICT_KIND=no-change`，candidate 与 `spec/anchor.json` 的 `commit` 同值。
-- 副作用面：无 PR、无 issue、`auto/upstream-sync` 分支不在远端——与 no-change 的
-  互斥分流相符（四个出口步骤全 `skipped` 是**正确**分流，不是漏跑）。
-- 这次判定只覆盖短路面：`tools/upstream-sync.ts` 在 `candidate === current.commit`
-  时直接返回，一个字节都不拉。所以真正被验证到的是 `probeHeadSha()`（GitHub API 取
-  上游 main HEAD）与 CLI→workflow 的取种、分流；`httpFetcher`、`buildAnchorFromDir`
-  与 `classify()` 的三层比较未被触及。要摸到它们只能等上游真的动，或 dispatch 时显式
+- 首航判定：`VERDICT_KIND=no-change`，candidate 与 `spec/anchor.json` 的 `commit` 同值。
+- **未被触及的仍是深面**：`tools/upstream-sync.ts` 在 `candidate === current.commit` 时直接返回，
+  一个字节都不拉。所以 no-change 这条路只验证到 `probeHeadSha()`（GitHub API 取上游 main HEAD）
+  与 CLI→workflow 的取种、分流；`httpFetcher`、`buildAnchorFromDir` 与 `classify()` 的三层比较
+  要等一次**真的有变化**的探测才会第一次被跑到。把这一点写清楚，是因为"schedule 跑绿了"
+  很容易被读成"整条判据链验证过了"——它没有。要摸到它们只能等上游真的动，或 dispatch 时显式
   传一个历史候选 SHA。
 - 代跑不算首航：`17 3 * * *` 这条每日触发本身仍未被观察到，RoadMap 的观察项因此保留。
 

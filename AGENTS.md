@@ -35,7 +35,9 @@
   这条路试过并证伪过一次（一次迁移让整只客户端 404）。
 - 非幂等写（POST / DELETE）遇 401 **永不自动重放**；T3 档操作不得自发执行；
   凭据不进命令行、不进文件、不进提交。活体验证只允许全新一次性环回夹具，
-  永远不要把目标指向生产实例（`verify:all` 的缺省目标是环回，换目标要显式声明可牺牲）。
+  永远不要把目标指向生产实例。口径要分清：`verify:all` 的离线门禁**不发 HTTP**；活体那一腿只有
+  加 `--fixture` 才起一次性环回实例，而把目标指向一个真实实例要显式声明它可牺牲
+  （判据与命令见 [verification.md](docs/operations/verification.md)）。
 - 交付判据是"调用方能 import 并真的调用"，不是"类型一致"或"构建通过"。
   客户端代码改动后必须在真浏览器里走一遍（见 [verification.md](docs/operations/verification.md)）。
 - 合入口径：不得直推 `main`，不得开 auto-merge；required check 绿也不等于可合，需人工审核。

@@ -1,0 +1,85 @@
+# 派生自 SnowLuma 源码 · 非商业自用 · 不发包管理器
+#
+# 供应链与依赖漏洞面。刻意**不并进** `npm run verify:all`：那条链的设计性质是离线可跑
+# （冷克隆不该被网络与注册表状态卡住），而这里的每一步都要出网。
+# 也不并进 verify.yml 的两条 job：那条 job 的 `run:` 序列由 tools/workflow-pins.test.ts
+# 钉成逐条相等，塞一条要出网的腿进去会同时破坏"离线"和"两条 OS 对称"两条性质。
+#
+# 判据口径：红 = 依赖面有高危以上未处理项；exit 2 = 设施故障（取不到数据、命令跑不起来），
+# 设施故障不算"干净"。零发现只有在发现面确实被扫过时才算数，所以每一步都打印它扫了什么。
+name: security-posture
+
+on:
+  pull_request:
+  schedule:
+    # 每日一次，错开上游探测与整点排队
+    - cron: '43 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-posture-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dependency-vulnerabilities:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      # 本仓运行面（生成的三语工件）零第三方依赖，这里的审计对象是**工装**：
+      # playwright / tsx / vitest 这些构建期依赖能读到 CI token 与工作树，供应链上是真攻击面。
+      - run: npm ci
+
+      - name: npm audit（high 及以上即红；发现数原文打印）
+        shell: bash
+        run: |
+          set -o pipefail
+          # pipefail 让 `| tee` 右侧不会把红洗成绿：管道取的是最左非零码。
+          npm audit --audit-level=high | tee audit.txt
+
+      - name: Dependabot 告警汇总（critical/high 未处理即红）
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -o pipefail
+          QUERY='[.[] | select(.security_advisory.severity=="critical" or .security_advisory.severity=="high")] | length'
+          # 取不到数据（开关被关、权限不够、端点 404）就是设施故障：gh api 非零码 + pipefail 会让这步红，
+          # 而不是打印"0 条"充当干净。
+          gh api "repos/$REPO/dependabot/alerts?state=open&per_page=100" --paginate \
+            --jq '.[] | "\(.security_advisory.severity)\t\(.dependency.package.name)"' | head -50
+          total=0
+          while read -r n; do total=$((total + n)); done < <(
+            gh api "repos/$REPO/dependabot/alerts?state=open&per_page=100" --paginate --jq "$QUERY"
+          )
+          echo "critical/high 开放告警合计：$total"
+          if [ "$total" -ne 0 ]; then
+            echo "有高危以上 Dependabot 告警未处理 —— 处置入口是它自动开的安全更新 PR，或显式裁定并把豁免写进 docs/operations/security.md" >&2
+            exit 1
+          fi
+
+  pr-dependency-review:
+    # 只审 PR 引入的**新增**依赖：schedule 触发时没有 base 可比，这步就跑不起来。
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: always

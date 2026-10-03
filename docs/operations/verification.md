@@ -12,12 +12,11 @@
 
 ### verify.yml（主链，windows-latest + ubuntu-latest）
 
-步骤：checkout → setup-node/python/go → `go install oapi-codegen@v2.8.0` →
-`npm run venv:bootstrap`（版本从 `tools.lock.json` 读，不在 workflow 里抄）→ `npm ci` →
-**`npm run fetch:upstream`（按锚点 SHA 重拉 vendor）** → `npm run generate`（三语全量）→
-`npm run gen:check`（跟踪词表逐字节对 HEAD）→ `npm run verify:all` →
-`npm run package:clients` → `npm run smoke:clients`（出口闸三层）。
-job 级 `PYTHONIOENCODING=utf-8`。
+步骤清单**不在本页抄**：真源就是 `.github/workflows/verify.yml` 自己，两条 OS job 的 `run:`
+序列由 `tools/workflow-pins.test.ts` 钉成逐条相等（复制一份到文档里，就是给自己造第二真相 ——
+本页此前写的那条 `go install oapi-codegen@v2.8.0` 恰恰是门禁禁止出现在 workflow 里的形状，
+而引导顺序也早已换成 `npm ci → venv:bootstrap → oapi:install`）。要看顺序就打开那个文件，
+或者跑一次 `npm run verify:all` 看它自己打印的 ✓/✗ 行。
 main 受 branch protection：`verify` 检查（context 实测名，不带 OS 后缀）是合入必要条件，
 **进 main 的改动一律走 PR，且 CI 绿后必须人工审核合入**（本仓禁用 auto-merge）。
 
@@ -67,7 +66,10 @@ dispatch 带 `dry_run=true` 可无副作用预演。设计裁定与判据表见
 
 逐字镜像 verify.yml 的引导，区别是 `verify:all` 在这里是**发布前置条件**：
 先过闸再打包出厂（三语 SDK tarball + spec/anchor/NOTICE + SHA256SUMS + 血统收据），
-tag `clients-<锚点短7位>-<UTC 时间戳>`。任何步骤红则无 Release。
+tag `clients-<契约版本>-<锚点短7位>-<UTC 时间戳>`（契约版本取自 `spec/openapi.yaml` 的
+`info.version`，所以同一个 tag 名里就能读出"哪一版契约 + 哪一次上游"）。任何步骤红则无 Release；
+最后一步还会把已上传的资产**下载回来**逐条核对 `SHA256SUMS.txt` —— 校验和与被它担保的字节同源，
+只算不核对就等于没核对。
 
 ## L4 活体门禁
 
