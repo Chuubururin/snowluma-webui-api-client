@@ -36,7 +36,9 @@
   审核前先推一个空提交把检查踢起来。
 - `docs/reference/api.md` 的分面操作表已与契约分叉且少列若干操作：整块改为生成面，
   手写那张删掉。
-- `CHANGELOG.md` 的两个链接指向不存在的 `v0.1.0` tag：按发布链实际产出的 0.1.0 基线补出该 tag。
+- `CHANGELOG.md` 的两个链接指向 `v0.1.0`——那个 tag 在远端从来不存在（`releases/tag/v0.1.0`
+  即使在本地补一个同名 tag 也是死链：该形状不在发布链产出的 tag 形状里，且没有对应 Release）。
+  现改为指向发布链实际产出的 0.1.0 基线 Release。
 - `SECURITY.md` 原先给的两条漏洞上报通道都是死的（私密报告状态无从复核、兜底指向
   `CONTRIBUTING.md` 里并不存在的联系方式）；现改为不声称未验证的开关 + 一条当下可执行的兜底。
 - `docs/operations/verification.md` 抄写的 CI 步骤清单（含一条本仓门禁禁止出现的
@@ -72,5 +74,5 @@
 - demo 生成面收口：唯机械事实源为操作词表（`gen:check` 幂等门禁），
   四类被证伪的自动生成产物已删除并登记禁止重提。
 
-[Unreleased]: https://github.com/Chuubururin/snowluma-webui-api-client/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/Chuubururin/snowluma-webui-api-client/releases/tag/v0.1.0
+[Unreleased]: https://github.com/Chuubururin/snowluma-webui-api-client/compare/clients-0.1.0-1ef9a2c-20261001160848...HEAD
+[0.1.0]: https://github.com/Chuubururin/snowluma-webui-api-client/releases/tag/clients-0.1.0-1ef9a2c-20261001160848

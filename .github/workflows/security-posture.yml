@@ -18,6 +18,10 @@ on:
 
 permissions:
   contents: read
+  # dependabot/alerts 端点要这个 scope。缺它不是"没有告警"而是 HTTP 403——
+  # 下面的门禁按设计把"取不到数据"判成设施红，所以这条腿会红而不是假绿（首次 CI 运行即实测）。
+  security-events: read
+
 
 concurrency:
   group: security-posture-${{ github.ref }}

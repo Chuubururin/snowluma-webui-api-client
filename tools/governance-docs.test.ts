@@ -159,13 +159,16 @@ describe('治理文档面（禁令此前只写在纸上）', () => {
     const refs = [...text.matchAll(/\[[^\]]+\]:\s*https:\/\/github\.com\/[^/]+\/[^/]+\/(releases\/tag|compare)\/([^\s#?]+)/g)];
     // 空集不算通过：把链接全删掉就让这条断言空转。
     expect(refs.length, 'CHANGELOG 没有任何链接引用，这条门禁在空转').toBeGreaterThan(0);
-    const localTags = new Set(execFileSync('git', ['tag', '--list'], { encoding: 'utf8' }).split(/\r?\n/).filter(Boolean));
+    const visibleTags = new Set(execFileSync('git', ['tag', '--list'], { encoding: 'utf8' }).split(/\r?\n/).filter(Boolean));
+    // 量具不能是空的：浅克隆（Actions 默认 fetch-depth: 1）不拉 tag，那时每条链接都判死，
+    // 报出来像"文档全烂"而实际是"没有可比的 tag"——两者的恢复动作完全相反。
+    expect(visibleTags.size, '当前克隆里一个 tag 都没有：量具失效（需 fetch-depth: 0），别去删链接').toBeGreaterThan(0);
     const dead: string[] = [];
     for (const [, kind, value] of refs) {
       const names = kind === 'compare' ? value.split('...') : [value];
       for (const n of names) {
         if (n === 'HEAD') continue;
-        if (!localTags.has(n)) dead.push(`tag ${n} 不存在（${kind}）`);
+        if (!visibleTags.has(n)) dead.push(`tag ${n} 不存在（${kind}）`);
       }
     }
     expect(dead, `指向不存在 tag 的链接：${dead.join(' | ')}`).toEqual([]);

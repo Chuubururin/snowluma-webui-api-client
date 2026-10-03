@@ -61,6 +61,16 @@ const WRITE_SCOPES: { uses?: RegExp; run?: RegExp; needs: Record<string, string>
   { uses: /actions\/deploy-pages@/, needs: { pages: 'write' } },
 ];
 
+/**
+ * 需要**读**权限才能拿到数据的调用 → 缺 scope 时平台给的不是空集而是 403。
+ * 这条表存在的理由是一次真实故障：`dependabot/alerts` 在只有 `contents: read` 的 job 里
+ * 返回 HTTP 403，而按本仓口径"取不到数据"判设施红 —— 门禁咬对了，但如果没有这条表，
+ * 下一个人看到的红是"扫描腿挂了"，最省事的处置就是把那步软成打印一行字。
+ */
+const READ_SCOPES: { run: RegExp; needs: Record<string, string> }[] = [
+  { run: /gh\s+api\b[^\n]*dependabot\/alerts/, needs: { 'security-events': 'read' } },
+];
+
 function permissionsMap(p: Job['permissions']): Record<string, string> {
   if (!p) return {};
   if (typeof p === 'string') return { all: p };
@@ -105,6 +115,32 @@ describe('声明即生效（inert 控制一律红）', () => {
       }
     }
     expect(offenders, `结构性不可能完成的写动作：\n${[...new Set(offenders)].join('\n')}`).toEqual([]);
+  });
+
+  it('要读平台数据才算数的步骤，必须自己声明读权限（403 不是"零条告警"）', () => {
+    const offenders: string[] = [];
+    let matched = 0;
+    for (const f of workflowFiles) {
+      const doc = parse(readFileSync(join(WF_DIR, f), 'utf8')) as WfDoc;
+      for (const [jobName, job] of Object.entries(doc.jobs ?? {})) {
+        const scopes = effectiveScopes(doc, job);
+        for (const step of job.steps ?? []) {
+          if (!step.run) continue;
+          for (const rule of READ_SCOPES) {
+            if (!rule.run.test(step.run)) continue;
+            matched++;
+            for (const [key, want] of Object.entries(rule.needs)) {
+              if (!scopeSatisfied(scopes, key, want)) {
+                offenders.push(`${f}#${jobName} 要读 ${key}（${rule.run.source}）但未授予 → 该步必然 403`);
+              }
+            }
+          }
+        }
+      }
+    }
+    // 空集不算通过：删掉扫描步或改掉端点，这条断言就静默空转。
+    expect(matched, '没有任何步骤命中 READ_SCOPES，这条门禁在空转').toBeGreaterThan(0);
+    expect(offenders, `声明了要扫但读不到数据的腿：\n${[...new Set(offenders)].join('\n')}`).toEqual([]);
   });
 
   it('dependabot 声明的每个生态都要在该 directory 有可解析清单（跟踪在 git 里才算）', () => {
