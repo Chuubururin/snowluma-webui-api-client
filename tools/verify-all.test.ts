@@ -3,7 +3,7 @@
  * 验证链清单的用例（实现批次）。
  *
  * 这条链原先带三条 HTTP 腿：`POST /set-base-url` → `POST /login` → `POST /run-all`。
- * 前者在重做里改名成了 `/gate/login`，后者随"消除原始调用台"（commit 7d8e91d /实现批次）整个删掉了
+ * 前者在重做里改名成了 `/gate/login`，后者随"消除原始调用台"那批改动整个删掉了
  * —— 于是一条号称"一键全链"的编排器必然在第 1–2 步抛错，而它头注还写着"离线门禁请在终端另行执行"，
  * 那句从来没人执行。一条看起来是活链、实际跑不起来的链，比没有这条链更坏：它把"没验"记成"验过"。
  *
@@ -13,7 +13,7 @@
  *  3. 清单说这条门禁跑在某个文件上，而那个文件不在了 ⇒ spawn 会 ENOENT；
  *     那是"根本没跑"，不是"跑红了"，两者的处置完全相反。
  */
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { exitCodeFor, GATES, REQUIRED_GATE_IDS, summarizePassingOutput } from './verify-all.js';
 
@@ -24,6 +24,41 @@ describe('验证链清单', () => {
   it('设计口径点名的每条离线门禁都在清单里', () => {
     const ids = GATES.map((g) => g.id);
     for (const need of REQUIRED_GATE_IDS) expect(ids, `清单缺门禁 ${need}`).toContain(need);
+  });
+
+  /**
+   * 上一条只点名五条，删掉其余四条里的任何一条它都不响。兜住"清单被删薄 / 加了没重跑"的是这条
+   * **跨文件对账**：入库报告 `docs/operations/verify-all-report.json` 由 `verify:all` 自己写，
+   * 它列出的门禁集合必须与 `GATES` 相等 —— 改清单而不重跑链，两边立刻分叉并点名差在哪。
+   * （`gates.md` 不能当这个对照面：它故意不复制那张表，那是设计口径，不是漏洞。）
+   * 这仍不解决"一只手同时改两处"（RoadMap 上那条自证难题待裁定），但它把义务从"记得重跑"
+   * 变成了"必须真跑过一次并把报告提交进来"。
+   */
+  it('门禁清单 ↔ 入库报告的门禁集合相等（删一条、或加了没重跑，都要红）', () => {
+    const report = JSON.parse(readFileSync('docs/operations/verify-all-report.json', 'utf8')) as {
+      fixture: boolean;
+      results: { id: string }[];
+    };
+    const ids = GATES.map((g) => g.id);
+    const reported = report.results.map((r) => r.id);
+    const neverRan = ids.filter((id) => !reported.includes(id));
+    // 带夹具那轮会把 L4 也写进报告，它不在默认清单里，属正当多出的一条。
+    const stale = reported.filter((id) => !ids.includes(id) && !(report.fixture && id === 'test:fixture'));
+    expect(neverRan, `GATES 里有、入库报告却没跑过（清单改了没重跑？）：${neverRan.join(', ')}`).toEqual([]);
+    expect(stale, `入库报告跑了、清单里却没有的门禁：${stale.join(', ')}`).toEqual([]);
+    // 反空转：报告至少要覆盖设计点名的那五条。
+    for (const need of REQUIRED_GATE_IDS) expect(reported, `入库报告缺点名门禁 ${need}`).toContain(need);
+  });
+
+  it('Python 腿的发现面来自目录本身，不是 package.json 里手抄的文件名', () => {
+    const py = pkg.scripts['test:py-adapter'];
+    // 这条断言的理由是它曾经成立不了：原先写成 `python a.py && python b.py && python c.py`，
+    // 第 4 个 test_*.py 落进来就永远不会被这条链跑到，而且不会有人发现。
+    expect(py, 'test:py-adapter 又退回手列文件名了').not.toMatch(/adapters\/python\/test_\w+\.py/);
+    expect(py).toMatch(/run-py-tests/);
+    // 反空转：目录里真有这条腿要跑的测试，否则上面两条都在判空集。
+    const found = readdirSync('adapters/python').filter((f) => /^test_.*\.py$/.test(f));
+    expect(found.length).toBeGreaterThanOrEqual(3);
   });
 
   it('每条门禁点名的 npm 脚本真的存在（幽灵门禁不许写成通过）', () => {

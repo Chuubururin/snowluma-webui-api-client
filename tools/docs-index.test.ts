@@ -62,6 +62,20 @@ describe('文档活性', () => {
     expect(unknown, `不存在的脚本：${unknown.join(', ')}`).toEqual([]);
   });
 
+  /**
+   * 上一条的反向：脚本面必须闭合。`commands.md` 自称"全部 npm 脚本"，此前只核过
+   * "文档里写的脚本存在"，没核过"存在的脚本都被写出来" —— 于是新增一条脚本可以完全不进文档，
+   * 使用者只能靠读 package.json 才知道它存在。发现面取自 package.json（活源），
+   * 不是取自文档里的清单，否则又变成拿被检对象当尺子。
+   */
+  it('每条 npm 脚本都要在 commands.md 里有一条说明（入口面不许有暗门）', () => {
+    const doc = readFileSync('docs/reference/commands.md', 'utf8');
+    const undocumented = scripts.filter((s) => !doc.includes(s));
+    expect(undocumented, `未写进 commands.md 的脚本：${undocumented.join(', ')}`).toEqual([]);
+    // 空转保护：脚本表为空时上面那条会假绿。
+    expect(scripts.length).toBeGreaterThan(10);
+  });
+
   it('导航页里指向工具锁、spec、报告等**非 md** 目标也得存在（改名最常撞的一类死链）', () => {
     const dead: string[] = [];
     for (const file of readablePages) {

@@ -2,7 +2,12 @@
 
 # spike 结论
 
-回答 spike 预研的六问。样本 spec：`spike/minimal-spec.yaml`（四类难点各占一处：
+回答 spike 预研的六问。样本 spec 现在住在
+[`codegen-spike.sample-spec.yaml`](codegen-spike.sample-spec.yaml)（本页原先与它一起放在根级
+`spike/` 下；正文里的命令与路径是当时的原样记录，不改写 —— 改写一段跑过的命令就等于伪造证据）。
+本页讲"生成链为什么长成现在这样"：每条工具选型与每个手写形状的理由，都在下面按问题分节。
+
+四类难点各占一处：
 布尔 discriminator / multipart / SSE / T3 破坏性上传），由校验器复核：
 
 ```

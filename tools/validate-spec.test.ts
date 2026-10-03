@@ -927,3 +927,31 @@ describe('规则分支的可红性（孤儿规则）', () => {
     expect(warning?.level).toBe('warning');
   });
 });
+
+describe('分面（tags）声明 ↔ 使用', () => {
+  // 与上面那条 describe 里的同名常量各自独立：vitest 的 describe 作用域不共享局部 const。
+  const bare = { 'x-replay-class': 't1', 'x-verification-status': 'verified', responses: {} } as Record<string, unknown>;
+
+  it('operation 用了却没声明 ⇒ UNDECLARED_TAG；声明了却没人用 ⇒ UNUSED_TAG', () => {
+    const doc = base({ '/api/x': { post: { ...bare, operationId: 'x', tags: ['ui'] } } }, { tags: [{ name: 'auth' }] });
+    const found = validateSpecDoc(doc).filter((i) => i.code === 'UNDECLARED_TAG' || i.code === 'UNUSED_TAG');
+    expect(found.map((i) => i.code).sort()).toEqual(['UNDECLARED_TAG', 'UNUSED_TAG']);
+    expect(found.find((i) => i.code === 'UNDECLARED_TAG')?.message).toContain('ui');
+    expect(found.find((i) => i.code === 'UNUSED_TAG')?.message).toContain('auth');
+  });
+
+  it('声明与使用一致 ⇒ 两条都不响（否则这条门禁会误伤合规契约）', () => {
+    const doc = base({ '/api/x': { post: { ...bare, operationId: 'x', tags: ['ui'] } } }, { tags: [{ name: 'ui' }] });
+    expect(validateSpecDoc(doc).filter((i) => /TAG/.test(i.code))).toEqual([]);
+  });
+
+  it('tags 项没有 name ⇒ TAG_ENTRY_INVALID，不许当成"声明了 undefined"混过去', () => {
+    const doc = base({ '/api/x': { post: { ...bare, operationId: 'x', tags: ['ui'] } } }, { tags: [{}] });
+    expect(codes(doc)).toContain('TAG_ENTRY_INVALID');
+  });
+
+  it('重复声明同一个分面 ⇒ TAG_DUPLICATE', () => {
+    const doc = base({ '/api/x': { post: { ...bare, operationId: 'x', tags: ['ui'] } } }, { tags: [{ name: 'ui' }, { name: 'ui' }] });
+    expect(codes(doc)).toContain('TAG_DUPLICATE');
+  });
+});

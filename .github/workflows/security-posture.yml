@@ -1,0 +1,68 @@
+# 派生自 SnowLuma 源码 · 非商业自用 · 不发包管理器
+#
+# 供应链与依赖漏洞面。刻意**不并进** `npm run verify:all`：那条链的设计性质是离线可跑
+# （冷克隆不该被网络与注册表状态卡住），而这里的每一步都要出网。
+# 也不并进 verify.yml 的两条 job：那条 job 的 `run:` 序列由 tools/workflow-pins.test.ts
+# 钉成逐条相等，塞一条要出网的腿进去会同时破坏"离线"和"两条 OS 对称"两条性质。
+#
+# 判据口径：红 = 依赖面有高危以上未处理项；exit 2 = 设施故障（取不到数据、命令跑不起来），
+# 设施故障不算"干净"。零发现只有在发现面确实被扫过时才算数，所以每一步都打印它扫了什么。
+name: security-posture
+
+on:
+  pull_request:
+  schedule:
+    # 每日一次，错开上游探测与整点排队
+    - cron: '43 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  # 这里**没有** Dependabot 告警汇总步，而且不是暂时缺的：`GET /repos/{o}/{r}/dependabot/alerts`
+  # 在 workflow 自带的 GITHUB_TOKEN 下结构性不可读。实测过 `security-events: read` 确实授予
+  # （runner 打印 SecurityEvents: read），端点仍回 HTTP 403 "Resource not accessible by
+  # integration"——授权位不是它缺的那一环。所以这条腿按"声明了但不生效"删掉，不要凭加权限把它请回来
+  # （判据与替代面见 docs/operations/security.md 与 tools/dead-control.test.ts 的禁面表）。
+
+concurrency:
+  group: security-posture-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dependency-vulnerabilities:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      # 本仓运行面（生成的三语工件）零第三方依赖，这里的审计对象是**工装**：
+      # playwright / tsx / vitest 这些构建期依赖能读到 CI token 与工作树，供应链上是真攻击面。
+      - run: npm ci
+
+      - name: npm audit（high 及以上即红；发现数原文打印）
+        shell: bash
+        run: |
+          set -o pipefail
+          # pipefail 让 `| tee` 右侧不会把红洗成绿：管道取的是最左非零码。
+          npm audit --audit-level=high | tee audit.txt
+
+  pr-dependency-review:
+    # 只审 PR 引入的**新增**依赖：schedule 触发时没有 base 可比，这步就跑不起来。
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: always

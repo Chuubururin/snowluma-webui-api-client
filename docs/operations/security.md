@@ -107,6 +107,30 @@
 > （只认 `status=completed`）。两次同步重跑均 `canceled`（`timed_out=false`），
 > 终态明细只能在登录态的 Qoder Security 控制台查看。
 
+## 供应链与依赖姿态
+
+审计对象是**工装**（`playwright` / `tsx` / `vitest` 这些构建期依赖能读 CI token 与工作树），
+不是发布物——三语工件按设计不带第三方运行时依赖，也不发包管理器。
+
+- 平台开关（依赖漏洞告警、Dependabot 安全更新、密钥扫描与 push 保护）的**当前状态与复核命令**
+  只写在 [`SECURITY.md`](../../SECURITY.md) 那张表里；本页不复制第二份，否则就是两份会各自漂的真相。
+- `.github/workflows/security-posture.yml`：每次 PR 与每日跑 `npm audit`（high 及以上即红）、
+  PR 新增依赖审查（`dependency-review-action`）。它刻意在 `verify:all` 之外：那条链的设计性质是
+  **离线可跑**，而这两步都要出网；塞进 `verify.yml` 还会同时破坏"两条 OS job 步序相等"。
+  取不到数据（命令跑不起来、注册表不可达）按设施故障红，不许打印"0 条"充当干净。
+- **Dependabot 开放告警没有 CI 汇总腿，而且加不回来**：`GET /repos/{owner}/{repo}/dependabot/alerts`
+  在 workflow 自带 token 下回 403 `Resource not accessible by integration`。缺的不是授权位——
+  实测补 `security-events: read` 后 runner 确实打印 `SecurityEvents: read`，端点仍 403。
+  所以这条按"声明了但不生效"的面被删掉，并由 `tools/dead-control.test.ts` 的禁令表钉住
+  （表里每条自带能命中当年那段步骤的正例，防止禁令正则写坏成空转）。
+  这一面的实际覆盖 = 平台侧 Dependabot 自己开的安全更新 PR + 下表的人肉读回命令。
+- 发布链的**回读校验**：`SHA256SUMS.txt` 由打包步算出，但只算不核等于没核——它与被担保的字节
+  同源同批，少传一个资产或文件名错位都不会响。所以现在会把已上传的资产下载回来逐条重算比对。
+- 仍然缺的（登记在 [`RoadMap.md`](../../RoadMap.md)）：外部可验的签名或 build attestation
+  （校验和只能证明"没传坏"，签名才能证明"是谁发的"）；私密漏洞报告的启用状态无法从 REST 复核。
+- 版本维护不交给自动面：生成器版本住 `tools.lock.json`，`dependabot.yml` 里 pip 项已删
+  ——仓内没有任何 pip 清单可解析，那条声明只会持续产出失败 job（判据见 `tools/dead-control.test.ts`）。
+
 ## 相关
 
 | 主题 | 去处 |

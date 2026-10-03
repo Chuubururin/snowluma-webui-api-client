@@ -17,11 +17,28 @@ servers:
 security:
   - bearer: []
 tags:
+  # 声明面必须覆盖使用面：每一条 operation 的 tags 都要在这里出现（tools/validate-spec.ts
+  # 的 UNDECLARED_TAG 执法），否则消费端按 tag 分组时会遇到凭空出现的分组。
   - name: auth
+    description: 登录与门控引导（改密、2FA 全生命周期）以及会话退出。
   - name: system
+    description: 实例状态与设置、存储与清理、更新检查、TLS 证书、备份导入导出。
   - name: agreements
+    description: 条款文本的读取与同意记录。
   - name: streams
+    description: SSE 事件流（状态流、日志流、调试事件流）。
   - name: debug
+    description: 调试文件的上传与动作调用面。
+  - name: ui
+    description: 界面偏好与外观配置的读写。
+  - name: config
+    description: 部署级全局设置与 OneBot 通道配置的读写。
+  - name: onebot
+    description: OneBot 进程与连接的状态、装载卸载和登录探测。
+  - name: logs
+    description: 日志读取、等级设置与追踪日志导出。
+  - name: notifications
+    description: 通知通道的配置、最近通知的读取与通道测试。
 components:
   securitySchemes:
     bearer:

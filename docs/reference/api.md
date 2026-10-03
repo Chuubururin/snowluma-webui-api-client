@@ -97,89 +97,12 @@ OpenAPI 模板形 `{uin}`，实际 URL 用 Express 形 `:uin`——两种写法�
 
 ## 操作清单（按域分组）
 
-### auth（6 操作）
+完整清单不在本页手抄：它由 `npm run gen:docs` 从 `spec/openapi.yaml` 现出，落在
+[operations.gen.md](operations.gen.md)，并由 `npm run gen:check` 在 CI 里钉住新鲜度。
 
-| 操作 | 方法 | 路径 | 档级 | 说明 |
-| --- | --- | --- | --- | --- |
-| login | POST | /api/login | t2 | 密码登录，可选 TOTP |
-| logout | POST | /api/logout | t2 | 登出（清除服务端 token） |
-| getAuthState | GET | /api/auth/state | t1 | 是否被要求改密 |
-| checkPasswordStrength | POST | /api/auth/check-strength | t1 | 密码强度检查 |
-| changePassword | POST | /api/auth/change-password | t3 | 修改密码（成功后全部会话失效） |
-| getTotpStatus | GET | /api/auth/totp | t1 | TOTP 开启状态与剩余恢复码 |
-
-### system（8 操作）
-
-| 操作 | 方法 | 路径 | 档级 | 说明 |
-| --- | --- | --- | --- | --- |
-| getStatus | GET | /api/status | t1 | 服务存活探针 |
-| getSystem | GET | /api/system | t1 | 主机/进程运行时快照 |
-| getSystemSettings | GET | /api/system/settings | t1 | WebUI 监听设置 |
-| saveSystemSettings | POST | /api/system/settings | t3 | 修改监听设置（需重启生效） |
-| getSystemStorage | GET | /api/system/storage | t1 | 存储快照与清理记录 |
-| updateStorageSettings | POST | /api/system/storage/settings | t2 | 修改日志存储设置 |
-| cleanupStorage | POST | /api/system/storage/cleanup | t3 | 清理存储（破坏性） |
-| uploadTlsCert / deleteTlsCert | POST/DELETE | /api/system/tls/cert | t3 | TLS 证书管理 |
-
-### onebot（4 操作）
-
-| 操作 | 方法 | 路径 | 档级 | 说明 |
-| --- | --- | --- | --- | --- |
-| listQq | GET | /api/qq-list | t1 | 已挂号 QQ 账号列表 |
-| listConnections | GET | /api/connections | t1 | OneBot 连接健康 |
-| getOneBotConfig | GET | /api/config/{uin} | t1 | 读取账号 OneBot 配置 |
-| saveOneBotConfig | POST | /api/config/{uin} | t3 | 保存账号 OneBot 配置 |
-
-### logs（5 操作）
-
-| 操作 | 方法 | 路径 | 档级 | 说明 |
-| --- | --- | --- | --- | --- |
-| listLogs | GET | /api/logs | t1 | 最近日志（query.limit，缺省 300） |
-| getLogLevel | GET | /api/logs/level | t1 | 当前控制台日志级别 |
-| setLogLevel | POST | /api/logs/level | t2 | 设置控制台日志级别 |
-| exportTraceLog | GET | /api/logs/export/trace | t1 | 导出完整追踪日志（text/plain 下载） |
-| streamLogs | GET | /api/logs/stream | t1 | SSE 实时日志流 |
-
-### notifications（3 操作）
-
-| 操作 | 方法 | 路径 | 档级 | 说明 |
-| --- | --- | --- | --- | --- |
-| getNotificationsConfig | GET | /api/notifications/config | t1 | 通知渠道配置 |
-| saveNotificationsConfig | POST | /api/notifications/config | t2 | 保存通知渠道配置 |
-| listRecentNotifications | GET | /api/notifications/recent | t1 | 最近投递记录 |
-| testNotificationChannel | POST | /api/notifications/test | t3 | 测试通知渠道 |
-
-### ui（4 操作）
-
-| 操作 | 方法 | 路径 | 档级 | 说明 |
-| --- | --- | --- | --- | --- |
-| getUiConfig | GET | /api/ui | t1 | UI 配置（外观+布局+页面） |
-| saveUiConfig | POST | /api/ui | t2 | 保存 UI 配置 |
-| getPublicUiAppearance | GET | /api/ui/public | t1 | 匿名可达的外观子集（登录页用） |
-| uploadBackgroundImage / clearBackgroundImage | POST/DELETE | /api/ui/background | t3 | 背景图管理 |
-
-### debug（5 操作）
-
-| 操作 | 方法 | 路径 | 档级 | 说明 |
-| --- | --- | --- | --- | --- |
-| listDebugActions | GET | /api/debug/actions | t1 | OneBot action 目录 |
-| invokeDebugAction | POST | /api/debug/invoke | t3 | 透传执行任意 OneBot action |
-| streamDebugAction | POST | /api/debug/invoke-stream | t3 | 流式透传（SSE 回包） |
-| uploadDebugFile | POST | /api/debug/upload | t3 | 上传文件到实例临时目录 |
-
-### streams（2 操作）
-
-| 操作 | 方法 | 路径 | 档级 | 说明 |
-| --- | --- | --- | --- | --- |
-| streamState | GET | /api/state/stream | t1 | SSE 实时状态流（processes/qq-list/connections） |
-| streamLogs | GET | /api/logs/stream | t1 | SSE 实时日志流 |
-
-### 全局配置与备份（4 操作）
-
-| 操作 | 方法 | 路径 | 档级 | 说明 |
-| --- | --- | --- | --- | --- |
-| getGlobalConfig / saveGlobalConfig | GET/POST | /api/global-config | t1/t2 | 部署级全局设置 |
-| exportBackup / importBackup | GET/POST | /api/system/backup/* | t3 | 备份导出与导入 |
+本页原先自带一张手写表，这次整块删除：分面计数已经和契约现出的值分叉，且有若干操作
+根本没列进来。主消费文档（API 参考）写假事实，比少一页文档更坏 —— 它能被读的人恰好处在
+最信任它的位置。能派生的面就不该手抄，口径见 [`AGENTS.md`](../../AGENTS.md)。
 
 ## 调用示例
 

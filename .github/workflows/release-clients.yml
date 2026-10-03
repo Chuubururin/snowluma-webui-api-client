@@ -140,6 +140,40 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # 同上一条的口径：tag 也走 env，不内插进脚本。这个值来自上一步自己算出的字符串，
+          # 今天没有注入面，但"无害"依赖的是别的步骤的正则，而不是这一行能看懂的东西。
+          TAG: ${{ steps.pack.outputs.tag }}
         run: |
           $files = Get-ChildItem dist -File | ForEach-Object { $_.FullName }
-          gh release create "${{ steps.pack.outputs.tag }}" --title "SnowLuma clients ${{ steps.pack.outputs.tag }}" --notes-file body.md -- $files
+          gh release create $env:TAG --title "SnowLuma clients $env:TAG" --notes-file body.md -- $files
+
+      # 校验和由打包步算出来，但"算出来"不等于"核对过"：SHA256SUMS 与它担保的字节同源同批，
+      # 上传途中少了一个资产、或者文件名错位，它自己不会响。这一步把判据挪到**已上传的字节**上：
+      # 从 Release 往回下载，逐条重算比对 —— 对不上就让发布链红，别挂着"已校验"的说法。
+      - name: 回读校验已上传资产的校验和
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.pack.outputs.tag }}
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP 'release-readback'
+          if (Test-Path $dir) { Remove-Item $dir -Recurse -Force }
+          New-Item -ItemType Directory -Force $dir | Out-Null
+          gh release download $env:TAG --dir $dir
+          $sumsPath = Join-Path $dir 'SHA256SUMS.txt'
+          if (-not (Test-Path $sumsPath)) { throw 'Release 里没有 SHA256SUMS.txt：没有可核对的校验和，这不算通过' }
+          $bad = @()
+          $checked = 0
+          foreach ($line in (Get-Content $sumsPath)) {
+            if (-not $line.Trim()) { continue }
+            $parts = $line -split '\s+', 2
+            $want = $parts[0].ToLower()
+            $name = $parts[1].Trim()
+            $path = Join-Path $dir $name
+            if (-not (Test-Path $path)) { $bad += "$name 在校验和清单里，却没随 Release 上传"; continue }
+            $got = (Get-FileHash $path -Algorithm SHA256).Hash.ToLower()
+            if ($got -ne $want) { $bad += "$name 校验和不符：清单 $want，回读 $got" }
+            $checked += 1
+          }
+          if ($bad.Count -gt 0) { throw "回读校验失败（核对 $checked 件）：`n$($bad -join "`n")" }
+          Write-Output "回读校验通过：$checked 件资产与 Release 上的字节逐一相符"

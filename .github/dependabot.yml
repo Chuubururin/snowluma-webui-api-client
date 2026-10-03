@@ -16,11 +16,16 @@ updates:
     schedule:
       interval: weekly
 
-  # .venv-gen 里 openapi-python-client 的版本由 tools.lock.json 钉死（生成器换代 =
-  # 生成面变更 = 必须过全链门禁），不交给 dependabot 自动升。
-  - package-ecosystem: pip
-    directory: /
+  # Go 侧依赖：真清单在 adapters/go/go.mod（3 个 require，含 oapi-codegen runtime）。
+  # 这一项是补漏：原先只声明了 npm / github-actions / pip，Go 腿的依赖漂移没有任何自动发现面。
+  - package-ecosystem: gomod
+    directory: /adapters/go
     schedule:
       interval: weekly
-    ignore:
-      - dependency-name: openapi-python-client
+
+  # 原先这里有一条 `pip in /`，已删除并注明原因，勿凭印象加回：仓内**没有**任何 pip 清单
+  # （requirements*.txt / pyproject.toml / setup.py / Pipfile 全部零命中，git ls-files 可复算），
+  # dependabot 解析不到清单，这项只会持续产生失败的 update job —— 典型的"声明了但不生效"。
+  # 由 tools/dead-control.test.ts 执法：每个声明的生态都要在该 directory 有跟踪在 git 里的清单。
+  # 生成器版本本来也不归 dependabot：openapi-python-client 由 tools.lock.json 钉死，
+  # 换代 = 生成面变更 = 必须过全链门禁。
