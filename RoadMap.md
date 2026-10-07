@@ -8,6 +8,7 @@
 
 | 项 | 背景与出处 | 落点 |
 | --- | --- | --- |
+| 仓库开关：允许 GitHub Actions 创建 PR | upstream-sync 的 green-advance 出口实测失败：判定与分支推送都成功，开 PR 被 GitHub 拒（"GitHub Actions is not permitted to create or approve pull requests"）——自动推进链的最后一步卡在平台设置，代码侧无解 | 所有者在仓库 Settings → Actions → General 勾选 *Allow GitHub Actions to create and approve pull requests*；勾选后可销本行，下一轮 green-advance 应全自动出 PR |
 | 云扫终态人工消费 | 整仓通道已查实并跑通提交（`~/.qodersec/bin/qodersec.exe scan --platform qoder --all`；对照实验单文件提交也通）。**两次同步重跑的云端终态都是 `canceled`**，而 CLI 照样打印 "No security issues found."——canceled 的 0 发现按口径不算数（缺席非干净）；本地四条取数通道（CLI 结果子命令、同步轮询、浏览器、qodercli 直连）全部实测不可用 | 操作者登录 qoder.com 的 Qoder Security 控制台，读最近一次整仓扫描报告的终态与发现清单；红项按 `docs/operations/security.md` 末节口径逐条开判，然后销本行 |
 | 变异台账的"新执法点必须有红证"自动化 | 二轮评审提出：AGENTS.md 要求每条新执法点做一次变异检验，但现在这条只靠人遵守，台账本身是往回看的记录。难点在于**朴素做法会自证**：让门禁比对"本页执法点表 ↔ 本页台账表"，两张表都在同一份文档里，一起删就一起绿，等于没闸。可行的起点是把发现面换成文件系统（如"每个 `tools/*.test.ts` 必须在某处被登记"），但代价是把普通单元测试也拖进登记义务 —— 未裁定做法 | 认领人先回答"发现面从哪来、不拖谁下水"，再写门禁；写出来必须自带一条咬得动的变异 |
 | `upstream-sync` 深面首次真跑 | schedule 已经自跑过、判定 `no-change`（判据与"哪些代码路径仍未被触及"见该页"每日触发观察"节）：短路面上 `httpFetcher` / `buildAnchorFromDir` / `classify()` 三层比较一次都没跑到 | 上游真的动过一次之后，按五分类判据表复核那一轮并落证据；不许为了摸到深面而手改 `spec/anchor.json` |
