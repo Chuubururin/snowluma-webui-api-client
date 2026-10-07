@@ -1,0 +1,260 @@
+{
+  "kind": "green-advance",
+  "candidate": "87527cb7641a5a42f8f0efb73cb066102e004dee",
+  "anchor": {
+    "upstreamRepo": "SnowLuma/SnowLuma",
+    "commit": "87527cb7641a5a42f8f0efb73cb066102e004dee",
+    "fetchedAt": "2026-10-07T10:22:13.257Z",
+    "files": [
+      {
+        "repoPath": "packages/core/src/webui/server.ts",
+        "sha256": "50d90a42d22b61e339f98fdf82e4a4901f40a4130b721a5a15d7a93b333df313",
+        "bytes": 78717
+      },
+      {
+        "repoPath": "packages/core/src/webui/storage-routes.ts",
+        "sha256": "e37721dbe23ca7c3bb5658dc4c3900ed925c47af4b163b66b6082e93a2a5b74b",
+        "bytes": 10502
+      },
+      {
+        "repoPath": "packages/core/src/webui/consent.ts",
+        "sha256": "833e7191dd9dd5704ec62e32caae5655139a164cb21ad9e3925b7d29e2d6747e",
+        "bytes": 8763
+      },
+      {
+        "repoPath": "packages/core/src/webui/sse-response.ts",
+        "sha256": "f3ee0d22a09a9871d9c6686083f2a13aeea3c2d5a56df7992dea4e9fb620bd3b",
+        "bytes": 2976
+      },
+      {
+        "repoPath": "packages/core/src/webui/debug-stream.ts",
+        "sha256": "1b311df1bb9aba1aacf4342438906915cc3c713518c3204120a2ed487b2fd776",
+        "bytes": 1303
+      },
+      {
+        "repoPath": "packages/webui/src/types.ts",
+        "sha256": "7f84fb2e93e86e9a8f78ebe4580632083129ef73e8a9935033f1ff2d0c07a16d",
+        "bytes": 16217
+      },
+      {
+        "repoPath": "packages/webui/src/lib/api/types.ts",
+        "sha256": "7f36c67a226e2093381ea59afadc8257af580488cce7079be477b6b94d46b28a",
+        "bytes": 11159
+      },
+      {
+        "repoPath": "packages/webui/src/lib/api/client.ts",
+        "sha256": "1e1368248625296372dceb4586261768adc61ce02f05989811610a497668564d",
+        "bytes": 36052
+      },
+      {
+        "repoPath": "packages/bridge/src/hook-manager.ts",
+        "sha256": "af62ddb1a3927b66e5bf12d645563fd7ba08fd22aeecb323d55680ffdca06bb5",
+        "bytes": 20376
+      },
+      {
+        "repoPath": "packages/bridge/src/types.ts",
+        "sha256": "d402401319116055ee26c396c84979145d50bbff88d88316d73c61436dcbdfb9",
+        "bytes": 458
+      },
+      {
+        "repoPath": "packages/bridge/src/injector.ts",
+        "sha256": "d4e4997501dc4dc3445e8e9e3cb06f635ef1d3873d4a0bb0864d94e68f731485",
+        "bytes": 4854
+      },
+      {
+        "repoPath": "packages/common/src/logger.ts",
+        "sha256": "a3e4f2f31d1c935193683c2ef9cae06393cc7d93683c30acdf6c741c67aa1af4",
+        "bytes": 13506
+      },
+      {
+        "repoPath": "packages/common/src/log-file-transport.ts",
+        "sha256": "08bd4f3ecc3d4b3334bedbfd6452a4a9b9ee16df0338724233790e3e58b9303e",
+        "bytes": 30308
+      },
+      {
+        "repoPath": "packages/common/src/runtime.ts",
+        "sha256": "cebe7e7672ce4924bffe1f7fa5fe3d13c5ff12cc2155a3327b2f8710dd7fe933",
+        "bytes": 10893
+      },
+      {
+        "repoPath": "packages/onebot/src/config.ts",
+        "sha256": "b2938a6a7df1f163d9fa1f8923998e40e8bedd832d63840a2bec23e2a8e7dc7f",
+        "bytes": 41094
+      },
+      {
+        "repoPath": "packages/onebot/src/global-config.ts",
+        "sha256": "e66e28bf354f1a5f54b418661655f895ea8ee6b48d744b690abac3d5313e8006",
+        "bytes": 7183
+      },
+      {
+        "repoPath": "packages/onebot/src/manager.ts",
+        "sha256": "fa89a588f21243b31bbc67237566e2149b059775868c65f5bbfc65fbcea1f8d1",
+        "bytes": 22849
+      },
+      {
+        "repoPath": "packages/onebot/src/instance.ts",
+        "sha256": "64b4d7f1a4102795a388e92085aa75873c54a58ee8f65d0dbc759e9bf6a1ec93",
+        "bytes": 27616
+      },
+      {
+        "repoPath": "packages/onebot/src/action-docs.ts",
+        "sha256": "7ac9b93276b04b4563704370ec24dba593e0ce54fe8e30e9f31252a8e816d221",
+        "bytes": 3165
+      },
+      {
+        "repoPath": "packages/onebot/src/stream-storage.ts",
+        "sha256": "eb5ea7b6dc3d13a399cbbb950e7a2a5a0c458347390f3d68c232688892d35d45",
+        "bytes": 9444
+      },
+      {
+        "repoPath": "packages/onebot/src/types.ts",
+        "sha256": "921bc3b9828fda38942d9b1cb0226b09d4cb1cfd8d3d0eaf5ba29956d7f0081e",
+        "bytes": 5456
+      },
+      {
+        "repoPath": "packages/core/src/webui/update-check.ts",
+        "sha256": "62b45184e720e7506cafb936466dee52e3d1bc82ac809ad00cc5cf115879d914",
+        "bytes": 5983
+      },
+      {
+        "repoPath": "packages/core/src/webui/ui-config.ts",
+        "sha256": "91a75a81cfe01a042f29a72639796019eb13ef8d58a42f0868d3f21aa67ddcaa",
+        "bytes": 32292
+      },
+      {
+        "repoPath": "packages/core/src/webui/log-export.ts",
+        "sha256": "0948c5beba04db5f4b2e8e48031196551fa58949563457be8be10a382edfd555",
+        "bytes": 1971
+      },
+      {
+        "repoPath": "packages/core/src/webui/auth.ts",
+        "sha256": "526deb2ee05fae599803ee22e9cbd6e9edc9d55b01158203c5b8e2cece32ca7c",
+        "bytes": 11788
+      },
+      {
+        "repoPath": "packages/core/src/webui/storage-management.ts",
+        "sha256": "d25b1ee8c4cf0543b1c87262a1a0792612c18e9cf764c79d61fdf5b636c89b91",
+        "bytes": 9977
+      },
+      {
+        "repoPath": "packages/core/src/webui/storage-settings.ts",
+        "sha256": "a9842712a5331c5ca95b75b133d3b8194d3b9788028554d1d3a886b5d1753ecc",
+        "bytes": 9614
+      },
+      {
+        "repoPath": "packages/core/src/notifications/config.ts",
+        "sha256": "09a6557e52e7916adab9434d52f066195f15d585b10a33a81c31e879d0fba1d7",
+        "bytes": 14266
+      },
+      {
+        "repoPath": "packages/core/src/notifications/manager.ts",
+        "sha256": "fa002d9fad74d5335887a91d8af865fb8aade3f03d3c411478901eb29ae07cf1",
+        "bytes": 10962
+      },
+      {
+        "repoPath": "packages/core/src/webui/totp.ts",
+        "sha256": "02320e3a1a74e4c4e16d7da06090a1492d727b504336fc20e77dfb3ddc066d6c",
+        "bytes": 11034
+      },
+      {
+        "repoPath": "packages/bridge/src/qq-port-probe.ts",
+        "sha256": "a4e0b495102240ce0afe2ec22b7de8d03f4bbd71f78d3fd6694cb3ca1eb588f8",
+        "bytes": 7532
+      },
+      {
+        "repoPath": "packages/webui/src/router/index.tsx",
+        "sha256": "0077ac3e3f3415114986c4543b31193aaf033f20359c0a1c6620acb117353d4b",
+        "bytes": 3697
+      },
+      {
+        "repoPath": "packages/webui/src/router/app-layout.tsx",
+        "sha256": "0d6a101edd684914c2f2011db0c92914dd0e3f18ec8b25562ccb30f554ed1ccc",
+        "bytes": 17050
+      },
+      {
+        "repoPath": "packages/webui/src/components/layout/sidebar.tsx",
+        "sha256": "300c9bdd9a58b5a362d894bb03a98992d3b446b4638323b716a1c6bbe1c005e3",
+        "bytes": 13133
+      },
+      {
+        "repoPath": "packages/webui/src/components/layout/top-bar.tsx",
+        "sha256": "534b5d6144d6b2c37dc0b5ee17b3cd9c9142c2828d30249bbd8a83b448d75e63",
+        "bytes": 5502
+      },
+      {
+        "repoPath": "packages/webui/src/components/pages/login-page.tsx",
+        "sha256": "ba54de3cb1c6ca176bd35761b057b6a9ca6fd68fc03bc82aebedd7e5fd642587",
+        "bytes": 14618
+      },
+      {
+        "repoPath": "packages/webui/src/components/pages/onboarding-wizard-page.tsx",
+        "sha256": "4788f8d3094266de30a5964729c764fc028df0f2e9242a2d365606295da27cfe",
+        "bytes": 13461
+      },
+      {
+        "repoPath": "packages/webui/src/components/pages/change-password-form.tsx",
+        "sha256": "48ddcc38bcf7e535ea5ab2be7a0f9ba2eb2777094c620f76558770cc99d0f767",
+        "bytes": 13348
+      },
+      {
+        "repoPath": "packages/webui/src/components/pages/status-screens.tsx",
+        "sha256": "e9d08d1ee524875f7e180feefc9a2c63f48e4d4014df180b97f2045106e2b740",
+        "bytes": 3193
+      },
+      {
+        "repoPath": "packages/webui/src/components/pages/overview-page.tsx",
+        "sha256": "527a977ec061d41972734e14799c679333b8b4cfcf13d8eefc954bbbbf94943c",
+        "bytes": 57926
+      },
+      {
+        "repoPath": "packages/webui/src/components/pages/dashboard-grid.tsx",
+        "sha256": "24295d35d408072a5360798507bbe5a1a3ff1e4af3286796c4ce0a5bf3f42272",
+        "bytes": 8166
+      },
+      {
+        "repoPath": "packages/webui/src/components/pages/widget-config-forms.tsx",
+        "sha256": "79e1e1eb04b64858694b830080a0f3f3b23314fbd8af1d58bd6f7910fd128a2c",
+        "bytes": 10639
+      },
+      {
+        "repoPath": "packages/webui/src/components/pages/processes-page.tsx",
+        "sha256": "3ff8076715c1784b502bd858a8d0f373c532307ae9dc9b07b98e02dc18fc583a",
+        "bytes": 15266
+      },
+      {
+        "repoPath": "packages/webui/src/components/pages/config-page.tsx",
+        "sha256": "fd212715a6f6c2a1b6a8b1f1a6bcdb113dd8c53f907048b8129a04df42bb7a59",
+        "bytes": 21897
+      },
+      {
+        "repoPath": "packages/webui/src/components/pages/logs-page.tsx",
+        "sha256": "0bde6416a3767441e432db2cf355d7de208a584191542ad7b90f02ec2472b529",
+        "bytes": 40950
+      },
+      {
+        "repoPath": "packages/webui/src/components/pages/settings-page.tsx",
+        "sha256": "3d273706725e0870fcd771f83b3dd894b0dba6502eb7fd403c73aa729adb8c0f",
+        "bytes": 66249
+      },
+      {
+        "repoPath": "packages/webui/src/components/pages/debug-page.tsx",
+        "sha256": "4440443ba556cf38045d443a5bf503277adb798c856db47ceb73ce7c9d9f7dba",
+        "bytes": 4753
+      }
+    ],
+    "expectedRouteRegistrations": 59,
+    "expectedApiOperations": 55,
+    "expectedModels": {
+      "packages/webui/src/types.ts": 76,
+      "packages/webui/src/lib/api/types.ts": 19
+    }
+  },
+  "changedFiles": [
+    "packages/common/src/runtime.ts",
+    "packages/core/src/notifications/manager.ts",
+    "packages/onebot/src/config.ts",
+    "packages/onebot/src/instance.ts",
+    "packages/onebot/src/manager.ts",
+    "packages/onebot/src/stream-storage.ts"
+  ]
+}
