@@ -37,9 +37,10 @@ describe('reference tier', () => {
     }
     return Promise.resolve();
   });
-  it('anchor 仍钉在既定 commit', () => {
-    expect(JSON.parse(readFileSync('spec/anchor.json', 'utf8')).commit).toBe(
-      '1ef9a2c33023b5fcb400865c8281d2dfd190540b',
-    );
+  it('anchor.commit 是完整的 40 位十六进制 SHA（green-advance 机械换锚，陈旧性归 drift/计数门禁）', () => {
+    // 硬编码"仍钉在既定 commit"曾让首次真实 green-advance 的 PR 必红：机械换锚是
+    // 已裁定的合法路径，锚点是否陈旧由 countExpectations/哈希比对负责，这里只钉形状。
+    const commit = JSON.parse(readFileSync('spec/anchor.json', 'utf8')).commit;
+    expect(commit).toMatch(/^[0-9a-f]{40}$/);
   });
 });

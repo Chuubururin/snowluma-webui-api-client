@@ -7,8 +7,9 @@
 
 ## 要解决的问题
 
-上游 `SnowLuma/SnowLuma` 在动，而本仓的锚点 `spec/anchor.json` 长期钉在
-`1ef9a2c`（一次性人工拉取）。装配前整条链有三个断点，本页的每个组件各自接住其中一个：
+上游 `SnowLuma/SnowLuma` 在动，而本仓的锚点 `spec/anchor.json` 现由 upstream-sync
+每日探测自动推进（green-advance：算术不变零判断；历史上曾长期钉在一次性人工拉取
+的 commit）。装配前整条链有三个断点，本页的每个组件各自接住其中一个：
 
 | 断点（装配前） | 现在的接法 |
 | --- | --- |
