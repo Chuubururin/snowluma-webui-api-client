@@ -1,7 +1,7 @@
 {
   "upstreamRepo": "SnowLuma/SnowLuma",
-  "commit": "1ef9a2c33023b5fcb400865c8281d2dfd190540b",
-  "fetchedAt": "2026-09-28T04:40:24.899Z",
+  "commit": "87527cb7641a5a42f8f0efb73cb066102e004dee",
+  "fetchedAt": "2026-10-10T09:57:29.858Z",
   "files": [
     {
       "repoPath": "packages/core/src/webui/server.ts",
@@ -70,13 +70,13 @@
     },
     {
       "repoPath": "packages/common/src/runtime.ts",
-      "sha256": "8e32e8cf482807ff29db6f37003808ec742bfbb6b473282935bbe9814dbef782",
-      "bytes": 10737
+      "sha256": "cebe7e7672ce4924bffe1f7fa5fe3d13c5ff12cc2155a3327b2f8710dd7fe933",
+      "bytes": 10893
     },
     {
       "repoPath": "packages/onebot/src/config.ts",
-      "sha256": "18125de04375c02765e7ad8b3f784699fc8128405c2edd2a5afec942c5e86df0",
-      "bytes": 39098
+      "sha256": "b2938a6a7df1f163d9fa1f8923998e40e8bedd832d63840a2bec23e2a8e7dc7f",
+      "bytes": 41094
     },
     {
       "repoPath": "packages/onebot/src/global-config.ts",
@@ -85,13 +85,13 @@
     },
     {
       "repoPath": "packages/onebot/src/manager.ts",
-      "sha256": "962cb3fcbdeb29c1ab2f67bc3ea104e159ac96221c8b69dbb782eb198309c84b",
-      "bytes": 18888
+      "sha256": "fa89a588f21243b31bbc67237566e2149b059775868c65f5bbfc65fbcea1f8d1",
+      "bytes": 22849
     },
     {
       "repoPath": "packages/onebot/src/instance.ts",
-      "sha256": "4f5724b3f212c4b6026595ad15025c8dac7fa459c874e8964370af6cdee9e8bf",
-      "bytes": 27068
+      "sha256": "64b4d7f1a4102795a388e92085aa75873c54a58ee8f65d0dbc759e9bf6a1ec93",
+      "bytes": 27616
     },
     {
       "repoPath": "packages/onebot/src/action-docs.ts",
@@ -100,8 +100,8 @@
     },
     {
       "repoPath": "packages/onebot/src/stream-storage.ts",
-      "sha256": "39a23e9c31e3eb60a5070aa0bb825f8e162a67e4561255d2a81e1ff0a68424a8",
-      "bytes": 8884
+      "sha256": "eb5ea7b6dc3d13a399cbbb950e7a2a5a0c458347390f3d68c232688892d35d45",
+      "bytes": 9444
     },
     {
       "repoPath": "packages/onebot/src/types.ts",
@@ -145,8 +145,8 @@
     },
     {
       "repoPath": "packages/core/src/notifications/manager.ts",
-      "sha256": "f7e94c8e1369acd41a2cbaa9cb1366eed0728849eb67b1a5689e9a038a53cfee",
-      "bytes": 10845
+      "sha256": "fa002d9fad74d5335887a91d8af865fb8aade3f03d3c411478901eb29ae07cf1",
+      "bytes": 10962
     },
     {
       "repoPath": "packages/core/src/webui/totp.ts",
